@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Profil{% endblock %}
+{% block content %}
+
+{% set vehicle = current_user.primary_vehicle %}
+{% set preferred_days = current_user.day_list() %}
+{% set window_order = current_user.window_order() %}
+
+<div class="page-head">
+  <h1>Mein Profil</h1>
+  <div class="sub">Kontaktdaten, Fahrzeug und Präferenzen für die Vergabe</div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Persönliche Daten</h2>
+    <form method="post" action="{{ url_for('auth.profile') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field-row">
+        <div class="field">
+          <label for="first_name">Vorname</label>
+          <input type="text" name="first_name" id="first_name" value="{{ current_user.first_name }}" required>
+        </div>
+        <div class="field">
+          <label for="last_name">Nachname</label>
+          <input type="text" name="last_name" id="last_name" value="{{ current_user.last_name }}" required>
+        </div>
+      </div>
+      <div class="field">
+        <label>Firmen-E-Mail-Adresse</label>
+        <input type="email" value="{{ current_user.email }}" disabled>
+        <div class="help">Änderungen der E-Mail-Adresse nimmt die Administration vor.</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="phone">Telefonnummer (optional)</label>
+          <input type="tel" name="phone" id="phone" value="{{ current_user.phone or '' }}">
+          <div class="help">
+            Wird in der Belegungsliste für Kolleginnen und Kollegen angezeigt,
+            damit kurzfristige Absprachen möglich sind. Leer lassen = nicht sichtbar.
+          </div>
+        </div>
+        <div class="field">
+          <label for="department">Abteilung (optional)</label>
+          <input type="text" name="department" id="department" value="{{ current_user.department or '' }}">
+        </div>
+      </div>
+
+      <h3>Fahrzeug</h3>
+      <div class="field-row">
+        <div class="field">
+          <label for="vehicle_type">Fahrzeugtyp</label>
+          <select name="vehicle_type" id="vehicle_type">
+            <option value="BEV" {% if vehicle and vehicle.type == 'BEV' %}selected{% endif %}>BEV (rein elektrisch)</option>
+            <option value="PHEV" {% if vehicle and vehicle.type == 'PHEV' %}selected{% endif %}>PHEV (Plug-in-Hybrid)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="manufacturer">Hersteller</label>
+          <input type="text" name="manufacturer" id="manufacturer" value="{{ vehicle.manufacturer if vehicle else '' }}">
+        </div>
+        <div class="field">
+          <label for="model">Modell</label>
+          <input type="text" name="model" id="model" value="{{ vehicle.model if vehicle else '' }}">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="license_plate">Kennzeichen</label>
+          <input type="text" name="license_plate" id="license_plate" value="{{ vehicle.license_plate if vehicle else '' }}">
+        </div>
+        <div class="field">
+          <label for="power_kw">Ladeleistung (kW)</label>
+          <input type="number" step="0.1" min="1" max="50" name="power_kw" id="power_kw"
+                 value="{{ vehicle.power_kw if vehicle else 11 }}">
+        </div>
+        <div class="field">
+          <label for="battery_kwh">Batteriekapazität (kWh)</label>
+          <input type="number" step="0.1" min="1" max="200" name="battery_kwh" id="battery_kwh"
+                 value="{{ vehicle.battery_kwh if vehicle and vehicle.battery_kwh else '' }}">
+        </div>
+      </div>
+
+      <h3>Präferenzen für die Vergabe</h3>
+      <p class="muted" style="font-size:.87rem">
+        Diese Angaben helfen dem System, passende Zeitfenster zu wählen. Sie sind
+        Wünsche – die faire Grundversorgung aller Personen hat weiterhin Vorrang.
+      </p>
+      <div class="field">
+        <label>An welchen Tagen bist du normalerweise vor Ort?</label>
+        <div class="btn-row">
+          {% for index in range(5) %}
+            <label class="checkline">
+              <input type="checkbox" name="day_{{ index }}" value="1"
+                     {% if index in preferred_days %}checked{% endif %}>
+              {{ ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'][index] }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label for="shift_model">Arbeitszeitmodell</label>
+        <select name="shift_model" id="shift_model">
+          <option value="flex" {% if current_user.shift_model == 'flex' %}selected{% endif %}>Gleitzeit / flexibel</option>
+          <option value="frueh" {% if current_user.shift_model == 'frueh' %}selected{% endif %}>Frühschicht</option>
+          <option value="spaet" {% if current_user.shift_model == 'spaet' %}selected{% endif %}>Spätschicht</option>
+          <option value="homeoffice" {% if current_user.shift_model == 'homeoffice' %}selected{% endif %}>Überwiegend Homeoffice</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Beliebteste Zeitfenster – Rang 1 = am liebsten</label>
+        <div class="field-row">
+          {% for index in range(window_label_count) %}
+            <div>
+              <span class="muted" style="font-size:.82rem">{{ window_label_at(index) }} Uhr</span>
+              <select name="window_rank_{{ index }}">
+                {% for rank in range(1, window_label_count + 1) %}
+                  <option value="{{ rank }}"
+                    {% if window_order[index] == rank %}selected{% endif %}>{{ rank }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label for="max_weekly_slots">Mein Wochenkontingent</label>
+        <input type="number" min="1" max="7" name="max_weekly_slots" id="max_weekly_slots"
+               value="{{ current_user.max_weekly_slots or 2 }}">
+        <div class="help">
+          Wie viele Ladezeiten möchtest du maximal pro Woche nutzen?
+          <strong>Eine Ladezeit pro Woche ist dir garantiert</strong> – sie wird
+          in der Vergaberunde zuerst berücksichtigt. Höhere Werte sind ein
+          Zusatzwunsch und werden nur erfüllt, wenn nach der Grundversorgung
+          aller Personen noch Kapazität frei ist.
+        </div>
+      </div>
+
+      <button class="btn" type="submit">Profil speichern</button>
+    </form>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>Passwort ändern</h2>
+      <form method="post" action="{{ url_for('auth.change_password') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="current_password">Aktuelles Passwort</label>
+          <input type="password" name="current_password" id="current_password" required autocomplete="current-password">
+        </div>
+        <div class="field">
+          <label for="new_password">Neues Passwort</label>
+          <input type="password" name="new_password" id="new_password" required autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="new_password_repeat">Neues Passwort wiederholen</label>
+          <input type="password" name="new_password_repeat" id="new_password_repeat" required autocomplete="new-password">
+        </div>
+        <button class="btn secondary" type="submit">Passwort ändern</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Mein Konto</h2>
+      <dl class="kv">
+        <dt>Status</dt>
+        <dd><span class="badge {{ 'green' if current_user.is_active else 'red' }}">{{ 'aktiv' if current_user.is_active else 'deaktiviert' }}</span></dd>
+        <dt>E-Mail bestätigt</dt>
+        <dd><span class="badge {{ 'green' if current_user.email_verified else 'amber' }}">{{ 'ja' if current_user.email_verified else 'nein' }}</span></dd>
+        <dt>Rolle</dt>
+        <dd>{{ 'Administration' if current_user.is_admin else 'Mitarbeiter/in' }}</dd>
+        <dt>Mitglied seit</dt>
+        <dd>{{ current_user.created_at|de_date }}</dd>
+        <dt>Letzte Anmeldung</dt>
+        <dd>{{ current_user.last_login_at|de_datetime if current_user.last_login_at else '–' }}</dd>
+      </dl>
+    </div>
+
+    <div class="card danger">
+      <h2>Konto löschen</h2>
+      <p style="font-size:.88rem">
+        Beim Löschen werden Name, E-Mail-Adresse, Telefonnummer und Fahrzeugdaten
+        unwiderruflich entfernt (Anonymisierung). Anonyme Nutzungsstatistiken
+        bleiben erhalten. Zukünftige Ladezeiten müssen vorher freigegeben oder
+        storniert werden.
+      </p>
+      <form method="post" action="{{ url_for('auth.delete_account') }}"
+            onsubmit="return confirm('Konto wirklich unwiderruflich anonymisieren und deaktivieren?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn danger" type="submit">Konto endgültig löschen</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

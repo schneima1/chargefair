@@ -1,0 +1,135 @@
+{% extends "admin/base.html" %}
+{% block title %}Einstellungen{% endblock %}
+{% block admin_title %}Einstellungen{% endblock %}
+{% block admin_sub %}Vergabeverfahren, Regeln und Zeitraster – gilt für alle Fahrzeuge gleichermaßen{% endblock %}
+
+{% block admin_content %}
+
+<div class="card highlight">
+  <h2>Vergabeverfahren</h2>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="allocation">
+    <div class="option-cards">
+      {% for method in methods %}
+        <label class="option {{ 'selected' if method.key == active_method }}">
+          <input type="radio" name="method" value="{{ method.key }}"
+                 {% if method.key == active_method %}checked{% endif %}>
+          <span class="title">
+            {{ method.label }}
+            {% if method.key == 'lexicographic' %}<span class="badge green">empfohlen</span>{% endif %}
+            {% if method.uses_solver %}<span class="badge grey">Optimierung</span>{% endif %}
+          </span>
+          <span class="desc">{{ method.summary }}</span>
+          <ul>
+            {% for item in method.pros %}<li>+ {{ item }}</li>{% endfor %}
+            {% for item in method.cons %}<li>− {{ item }}</li>{% endfor %}
+          </ul>
+        </label>
+      {% endfor %}
+    </div>
+
+    <h3 class="mt">Regeln</h3>
+    <p class="muted" style="font-size:.87rem">
+      Die <strong>garantierte Ladezeit</strong> wird in der Vergabe zuerst
+      sichergestellt: Jede Person erhält sie, bevor irgendjemand eine zweite
+      Ladezeit bekommt. Die <strong>maximale Anzahl</strong> begrenzt dagegen,
+      wie viele Zusatzwünsche eine Person insgesamt angeben darf.
+    </p>    <div class="field-row">
+      <div class="field">
+        <label for="max_regular">Garantierte Ladezeit pro Person und Woche</label>
+        <input type="number" name="max_regular" id="max_regular" min="1" max="5" value="{{ max_regular }}">
+        <div class="help">Grundversorgung, die vor allen Zusatzwünschen greift (Empfehlung: 1).</div>
+      </div>
+      <div class="field">
+        <label for="max_slots">Maximale Ladezeiten pro Person und Woche</label>
+        <input type="number" name="max_slots" id="max_slots" min="1" max="10" value="{{ max_slots }}">
+        <div class="help">Obergrenze inklusive Zusatzwünschen aus Restkapazität.</div>
+      </div>
+      <div class="field">
+        <label for="offer_minutes">Reaktionszeit für Wartelisten-Angebote (Minuten)</label>
+        <input type="number" name="offer_minutes" id="offer_minutes" min="5" max="240" value="{{ offer_minutes }}">
+      </div>
+      <div class="field">
+        <label for="distribution_weeks">Zeitraum der Verteilungsstatistik (Wochen)</label>
+        <input type="number" name="distribution_weeks" id="distribution_weeks" min="1" max="52" value="{{ distribution_weeks }}">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="checkline">
+        <input type="checkbox" name="reminders" value="1" {% if reminders %}checked{% endif %}>
+        E-Mail-Erinnerungen vor Beginn und Ende der Ladezeit versenden
+      </label>
+      <div class="help">
+        Die Erinnerung enthält einen Ein-Klick-Link zum Freigeben des Termins –
+        praktisch, wenn kurzfristig etwas dazwischenkommt.
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>Keine Punktesysteme</strong>
+      Die Vergabe bevorzugt niemanden nach Wartezeit oder früheren Ladezeiten.
+      Nicht genutzte Termine werden nur erfasst, damit die Administration
+      verschenkte Kapazität erkennt – ohne Abzug und ohne Sperre.
+    </div>
+
+    <button class="btn" type="submit">Einstellungen speichern</button>
+  </form>
+</div>
+
+<div class="card mt">
+  <h2>Zeitraster</h2>
+  <p class="muted">
+    Das Raster gilt für <strong>alle</strong> Fahrzeuge – es gibt keine getrennten
+    Zeitfenster für BEV und PHEV und keine kürzeren Slots für bestimmte Fahrzeugtypen.
+    Zwischen zwei Fenstern sollte ein Puffer zum Umparken bleiben.
+  </p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="section" value="grid">
+    <div class="field-row">
+      {% for index in range(raw_windows|length) %}
+        <div class="field">
+          <label for="window_{{ index }}">Zeitfenster {{ index + 1 }}</label>
+          <input type="text" name="window_{{ index }}" id="window_{{ index }}"
+                 value="{{ '%02d:%02d-%02d:%02d'|format(raw_windows[index][0] // 60, raw_windows[index][0] % 60, raw_windows[index][1] // 60, raw_windows[index][1] % 60) }}"
+                 placeholder="06:00-09:00">
+        </div>
+      {% endfor %}
+    </div>
+    <div class="field">
+      <label>Betriebstage</label>
+      <div class="btn-row">
+        {% for index in range(7) %}
+          <label class="checkline">
+            <input type="checkbox" name="workdays" value="{{ index }}"
+                   {% if index in workdays_list %}checked{% endif %}>
+            {{ ['Mo','Di','Mi','Do','Fr','Sa','So'][index] }}
+          </label>
+        {% endfor %}
+      </div>
+      <div class="help">
+        Achtung: Ändert sich die Anzahl der Zeitfenster, gelten bestehende Buchungen
+        weiterhin, neue Buchungen nutzen das neue Raster.
+      </div>
+    </div>
+    <button class="btn" type="submit">Zeitraster speichern</button>
+  </form>
+</div>
+
+<div class="card mt">
+  <h2>Aktuelles Raster</h2>
+  <div class="table-wrap">
+    <table class="compact">
+      <thead><tr><th>Zeitfenster</th><th>Kapazität je Fenster</th></tr></thead>
+      <tbody>
+        {% for window in windows %}
+          <tr><td><strong>{{ window }} Uhr</strong></td><td class="mono">je Ladepunkt 1 Fahrzeug</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

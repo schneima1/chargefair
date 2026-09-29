@@ -1,0 +1,120 @@
+{% extends "admin/base.html" %}
+{% block title %}Verteilung{% endblock %}
+{% block admin_title %}Verteilung der Ladezeiten{% endblock %}
+{% block admin_sub %}Wie gleichmäßig sind die Ladezeiten der letzten {{ weeks }} Wochen verteilt?{% endblock %}
+
+{% block admin_content %}
+
+<div class="note">
+  <strong>Diese Auswertung bewertet niemanden</strong>
+  Sie zeigt ausschließlich, wie sich die vergebenen Ladezeiten verteilen. Es gibt
+  kein Punktesystem und keine Bevorzugung nach Wartezeit: Bei knappen Plätzen
+  entscheidet innerhalb der Regeln der Zufall. Die Zahlen dienen dazu, strukturelle
+  Schieflagen zu erkennen und gegenzusteuern – etwa mehr Ladepunkte, ein anderes
+  Zeitraster oder mehr Zusatzplätze.
+</div>
+
+<div class="card">
+  <form method="get" class="field-row">
+    <div class="field">
+      <label for="wochen">Betrachtungszeitraum (Wochen)</label>
+      <select name="wochen" id="wochen" onchange="this.form.submit()">
+        {% for value in [4, 8, 12, 26, 52] %}
+          <option value="{{ value }}" {% if value == weeks %}selected{% endif %}>{{ value }} Wochen</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field" style="align-self:end"><button class="btn secondary" type="submit">Anwenden</button></div>
+  </form>
+</div>
+
+<div class="grid cols-4 mt">
+  <div class="stat"><div class="label">Verteilte Ladezeiten</div><div class="value">{{ report.total }}</div><div class="hint">{{ report.users }} aktive Mitarbeitende</div></div>
+  <div class="stat"><div class="label">Ø je Person</div><div class="value">{{ report.mean }}</div><div class="hint">Bezugswert für den Vergleich</div></div>
+  <div class="stat"><div class="label">Standardabweichung</div><div class="value">{{ report.stddev }}</div><div class="hint">Streuung der Verteilung</div></div>
+  <div class="stat"><div class="label">Spannweite</div><div class="value">{{ report.min }}–{{ report.max }}</div><div class="hint">Minimum bis Maximum</div></div>
+</div>
+
+<div class="card mt">
+  <h2>Verteilungsklassen</h2>
+  <div class="grid cols-4">
+    <div class="stat {{ 'danger' if report.buckets['none'] else '' }}">
+      <div class="label">0 Ladezeiten</div>
+      <div class="value">{{ report.buckets['none'] }}</div>
+      <div class="hint">Personen komplett ohne Ladezeit</div>
+    </div>
+    <div class="stat"><div class="label">1–5 Ladezeiten</div><div class="value">{{ report.buckets['low'] }}</div></div>
+    <div class="stat"><div class="label">6–10 Ladezeiten</div><div class="value">{{ report.buckets['mid'] }}</div></div>
+    <div class="stat"><div class="label">&gt; 10 Ladezeiten</div><div class="value">{{ report.buckets['high'] }}</div></div>
+  </div>
+  {% if report.buckets['none'] %}
+    <div class="note warn mt-sm">
+      <strong>{{ report.buckets['none'] }} Person(en) ohne Ladezeit</strong>
+      Prüfe, ob ihre Wunschzeiten überhaupt Kapazität haben – häufig liegt es an
+      wenigen stark nachgefragten Zeitfenstern. Abhilfe: mehr Zusatzplätze, ein
+      anderes Zeitraster oder zusätzliche Ladepunkte.
+    </div>
+  {% else %}
+    <div class="note green mt-sm">
+      <strong>Alle aktiven Mitarbeitenden wurden berücksichtigt</strong>
+      In den letzten {{ weeks }} Wochen hat jede Person mindestens eine Ladezeit erhalten.
+    </div>
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <h2>Ladezeiten je Person (Top 25)</h2>
+  {% if report.chart %}
+    <div class="bar-chart">
+      {% for row in report.chart %}
+        <div class="bar-row">
+          <span>{{ row.name }}</span>
+          <span class="bar {{ 'high' if row.count > report.mean * 1.5 }}">
+            <span style="width: {{ (row.count / (report.chart|map(attribute='count')|max or 1) * 100)|round(0)|int }}%"></span>
+          </span>
+          <span class="num">{{ row.count }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty">Keine Daten im gewählten Zeitraum.</p>
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <h2>Einzelauswertung</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Person</th><th>Ladezeiten</th><th>Verteilung</th><th>Abweichung vom Ø</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          {% set delta = row.count - report.mean %}
+          <tr>
+            <td>
+              <strong>{{ row.user.full_name }}</strong><br>
+              <small class="muted">{{ row.user.email }}</small>
+            </td>
+            <td class="mono">{{ row.count }}</td>
+            <td style="min-width:140px">
+              <div class="bar {{ 'high' if row.count > maximum * 0.8 }}">
+                <span style="width: {{ (row.count / maximum * 100)|round(0)|int }}%"></span>
+              </div>
+            </td>
+            <td class="mono">
+              {% if delta > 0 %}+{{ delta|round(1) }}
+              {% elif delta < 0 %}{{ delta|round(1) }}
+              {% else %}±0{% endif %}
+            </td>
+            <td class="right">
+              <a class="btn small secondary" href="{{ url_for('admin.user_detail', user_id=row.user.id) }}">Profil</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

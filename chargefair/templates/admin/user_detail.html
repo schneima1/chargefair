@@ -1,0 +1,135 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ user.full_name }}{% endblock %}
+{% block admin_title %}{{ user.full_name }}{% endblock %}
+{% block admin_sub %}{{ user.email }}{% endblock %}
+
+{% block admin_content %}
+
+<div class="grid cols-3">
+  <div class="card">
+    <h2>Stammdaten</h2>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="update">
+      <div class="field-row">
+        <div class="field">
+          <label for="first_name">Vorname</label>
+          <input type="text" name="first_name" id="first_name" value="{{ user.first_name }}">
+        </div>
+        <div class="field">
+          <label for="last_name">Nachname</label>
+          <input type="text" name="last_name" id="last_name" value="{{ user.last_name }}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="department">Abteilung</label>
+        <input type="text" name="department" id="department" value="{{ user.department or '' }}">
+      </div>
+      <div class="field">
+        <label for="phone">Telefon</label>
+        <input type="text" name="phone" id="phone" value="{{ user.phone or '' }}">
+      </div>
+      <div class="field">
+        <label for="max_weekly_slots">Maximale Ladezeiten pro Woche</label>
+        <input type="number" min="1" max="7" name="max_weekly_slots" id="max_weekly_slots"
+               value="{{ user.max_weekly_slots or 2 }}">
+      </div>
+      <button class="btn secondary" type="submit">Speichern</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Status und Rolle</h2>
+    <dl class="kv">
+      <dt>Rolle</dt><dd>{{ 'Administration' if user.is_admin else 'Mitarbeiter/in' }}</dd>
+      <dt>Aktiv</dt><dd>{{ 'ja' if user.is_active else 'nein' }}</dd>
+      <dt>E-Mail bestätigt</dt><dd>{{ 'ja' if user.email_verified else 'nein' }}</dd>
+      <dt>Registriert</dt><dd>{{ user.created_at|de_date }}</dd>
+      <dt>Letzte Anmeldung</dt><dd>{{ user.last_login_at|de_datetime if user.last_login_at else '–' }}</dd>
+      <dt>Fehlversuche</dt><dd>{{ user.failed_logins }}</dd>
+    </dl>
+    <div class="btn-row mt">
+      {% for action, label, css in [
+        ('toggle_active', 'Deaktivieren' if user.is_active else 'Aktivieren', 'warn'),
+        ('verify', 'E-Mail bestätigen', 'secondary'),
+        ('make_admin' if not user.is_admin else 'make_user',
+         'Zum Admin machen' if not user.is_admin else 'Zum Mitarbeiter machen', 'secondary')
+      ] %}
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="{{ action }}">
+          <button class="btn {{ css }} small" type="submit">{{ label }}</button>
+        </form>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card danger">
+    <h2>Löschkonzept (DSGVO)</h2>
+    <p style="font-size:.87rem">
+      Anonymisiert Name, E-Mail, Telefon, Abteilung und Fahrzeugdaten und deaktiviert
+      das Konto. Anonyme Statistiken bleiben erhalten. Dieser Schritt kann nicht
+      rückgängig gemacht werden.
+    </p>
+    <form method="post" onsubmit="return confirm('Konto wirklich anonymisieren?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="anonymize">
+      <button class="btn danger" type="submit">Konto anonymisieren</button>
+    </form>
+    <p class="muted mt-sm no-margin" style="font-size:.82rem">
+      Hinweis: Passwörter werden als Hash gespeichert und sind auch für die
+      Administration nicht lesbar.
+    </p>
+  </div>
+</div>
+
+<div class="grid cols-2 mt">
+  <div class="card">
+    <h2>Letzte Ladezeiten</h2>
+    {% if bookings %}
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Datum</th><th>Zeit</th><th>Ladepunkt</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for booking in bookings %}
+              <tr>
+                <td class="nowrap">{{ booking.date_label }}</td>
+                <td class="nowrap">{{ booking.window_label }}</td>
+                <td>{{ booking.charging_point.name if booking.charging_point else '–' }}</td>
+                <td><span class="badge {{ {'active': 'green', 'released': 'amber', 'cancelled': 'grey', 'completed': 'blue'}.get(booking.status, 'grey') }}">{{ booking.status_label }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">Keine Buchungen vorhanden.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Interesse an bestimmten Terminen</h2>
+    {% if interests %}
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Woche</th><th>Termin</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for interest in interests %}
+              <tr>
+                <td class="nowrap">{{ interest.week_start|de_date }}</td>
+                <td>{{ interest.weekday|weekday }}, {{ window_label_at(interest.window_index) }} Uhr</td>
+                <td><span class="badge {{ 'amber' if interest.is_active else 'grey' }}">{{ interest.status_label }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">Keine Einträge.</p>
+    {% endif %}
+  </div>
+</div>
+
+<p class="mt"><a class="btn secondary" href="{{ url_for('admin.users') }}">Zurück zur Liste</a></p>
+
+{% endblock %}

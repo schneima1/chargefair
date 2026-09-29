@@ -1,0 +1,74 @@
+{% extends "admin/base.html" %}
+{% block title %}Benutzer{% endblock %}
+{% block admin_title %}Benutzerverwaltung{% endblock %}
+{% block admin_sub %}{{ counts.all }} Konten · {{ counts.active }} aktiv · {{ counts.inactive }} deaktiviert{% endblock %}
+
+{% block admin_content %}
+
+<div class="card">
+  <form method="get" class="field-row">
+    <div class="field">
+      <label for="q">Suche</label>
+      <input type="text" name="q" id="q" value="{{ search }}" placeholder="Name, E-Mail, Abteilung">
+    </div>
+    <div class="field">
+      <label for="role">Rolle</label>
+      <select name="role" id="role">
+        <option value="">alle</option>
+        <option value="user" {% if role == 'user' %}selected{% endif %}>Mitarbeiter/in</option>
+        <option value="admin" {% if role == 'admin' %}selected{% endif %}>Administration</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="state">Status</label>
+      <select name="state" id="state">
+        <option value="">alle</option>
+        <option value="active" {% if state == 'active' %}selected{% endif %}>aktiv</option>
+        <option value="inactive" {% if state == 'inactive' %}selected{% endif %}>deaktiviert</option>
+      </select>
+    </div>
+    <div class="field" style="align-self:end">
+      <button class="btn secondary" type="submit">Filtern</button>
+    </div>
+  </form>
+</div>
+
+<div class="card mt">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>E-Mail</th><th>Abteilung</th><th>Fahrzeug</th>
+          <th>Rolle</th><th>Status</th><th>Letzte Anmeldung</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in entries %}
+          <tr>
+            <td><strong>{{ user.full_name }}</strong>{% if user.anonymized_at %}<br><small class="muted">anonymisiert</small>{% endif %}</td>
+            <td>
+              {{ user.email }}
+              {% if not user.email_verified %}<br><span class="badge amber">unbestätigt</span>{% endif %}
+            </td>
+            <td>{{ user.department or '–' }}</td>
+            <td>
+              {% set vehicle = user.primary_vehicle %}
+              {% if vehicle %}
+                <span class="badge {{ 'ev' if vehicle.type == 'BEV' else 'phev' }}">{{ vehicle.type }}</span>
+                <small class="muted">{{ vehicle.display }}</small>
+              {% else %}–{% endif %}
+            </td>
+            <td><span class="badge {{ 'violet' if user.is_admin else 'grey' }}">{{ 'Admin' if user.is_admin else 'Mitarbeiter' }}</span></td>
+            <td>
+              <span class="badge {{ 'green' if user.is_active else 'red' }}">{{ 'aktiv' if user.is_active else 'deaktiviert' }}</span>
+            </td>
+            <td class="nowrap">{{ user.last_login_at|de_datetime if user.last_login_at else '–' }}</td>
+            <td class="right"><a class="btn small secondary" href="{{ url_for('admin.user_detail', user_id=user.id) }}">Öffnen</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

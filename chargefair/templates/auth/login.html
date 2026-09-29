@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Anmelden{% endblock %}
+{% block content %}
+<div style="max-width:460px;margin:2rem auto">
+  <div class="card">
+    <h1>Anmelden</h1>
+    <p class="muted">Melde dich mit deiner Firmen-E-Mail-Adresse an.</p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="email">Firmen-E-Mail</label>
+        <input type="email" name="email" id="email" value="{{ email }}" required autofocus
+               autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">Passwort</label>
+        <input type="password" name="password" id="password" required autocomplete="current-password">
+      </div>
+      <div class="checkline" style="margin-bottom:.8rem">
+        <input type="checkbox" name="remember" id="remember" value="1">
+        <label for="remember" style="margin:0">Angemeldet bleiben</label>
+      </div>
+      <button class="btn" type="submit" style="width:100%">Anmelden</button>
+    </form>
+    <p class="mt-sm" style="font-size:.88rem">
+      <a href="{{ url_for('auth.forgot_password') }}">Passwort vergessen?</a> ·
+      <a href="{{ url_for('auth.register') }}">Konto erstellen</a>
+    </p>
+  </div>
+  <p class="muted mt-sm" style="font-size:.84rem">
+    Aus Sicherheitsgründen wird das Konto nach mehreren Fehlversuchen kurzzeitig
+    gesperrt. Passwörter werden ausschließlich als Hash gespeichert.
+  </p>
+</div>
+{% endblock %}

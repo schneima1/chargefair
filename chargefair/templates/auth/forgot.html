@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Passwort vergessen{% endblock %}
+{% block content %}
+<div style="max-width:460px;margin:2rem auto">
+  <div class="card">
+    <h1>Passwort vergessen</h1>
+    <p class="muted">
+      Gib deine Firmen-E-Mail-Adresse an. Wir senden dir einen Link zum
+      Zurücksetzen, der zwei Stunden gültig ist.
+    </p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="email">Firmen-E-Mail</label>
+        <input type="email" name="email" id="email" required autofocus>
+      </div>
+      <button class="btn" type="submit" style="width:100%">Link anfordern</button>
+    </form>
+    <p class="mt-sm" style="font-size:.88rem"><a href="{{ url_for('auth.login') }}">Zurück zur Anmeldung</a></p>
+  </div>
+</div>
+{% endblock %}

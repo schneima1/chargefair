@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Administration{% endblock %}
+{% block content %}
+
+{% set admin_nav = [
+  ('admin.dashboard', 'Übersicht'),
+  ('admin.rounds', 'Vergaberunden'),
+  ('admin.users', 'Benutzer'),
+  ('admin.infrastructure', 'Infrastruktur'),
+  ('admin.interests', 'Slot-Interesse'),
+  ('admin.feedback', 'Feedback'),
+  ('admin.distribution', 'Verteilung'),
+  ('admin.settings', 'Einstellungen'),
+  ('admin.codes', 'Codes'),
+  ('admin.email_queue', 'E-Mail-Queue'),
+  ('admin.audit_log', 'Audit-Log')
+] %}
+
+<div class="page-head">
+  <h1>{% block admin_title %}Administration{% endblock %}</h1>
+  <div class="sub">{% block admin_sub %}{% endblock %}</div>
+  <div class="toolbar">
+    {% for endpoint, label in admin_nav %}
+      <a class="btn {{ 'secondary' if request.endpoint != endpoint else '' }} small"
+         href="{{ url_for(endpoint) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% block admin_content %}{% endblock %}
+{% endblock %}

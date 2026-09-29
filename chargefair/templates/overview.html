@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Belegung{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Belegung &amp; Übersicht</h1>
+  <div class="sub">{{ week_label }} · wer lädt wann, mit welchem Fahrzeug</div>
+  <div class="toolbar">
+    <a class="btn secondary small" href="{{ url_for('main.overview', woche=prev_week.isoformat()) }}">← Vorherige Woche</a>
+    <a class="btn secondary small" href="{{ url_for('main.overview', woche=next_week.isoformat()) }}">Nächste Woche →</a>
+    <a class="btn ghost small" href="{{ url_for('main.plan', woche=week.isoformat()) }}">Zum Wochenplan</a>
+    <span class="muted">{{ free }} von {{ total_capacity }} Ladegelegenheiten frei</span>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Transparenz – und was hier bewusst nicht steht</strong>
+  Sichtbar sind Name (Kurzform), Fahrzeug und Ladepunkt, damit ihr euch abstimmen
+  könnt. <strong>Kennzeichen und Telefonnummer werden nicht angezeigt</strong> –
+  Kontakt läuft über den Button „Nachricht“, damit niemand Daten preisgeben muss.
+  Wer eine Ladezeit nicht nutzen kann, gibt sie frei; wer Interesse an einem
+  belegten Termin hat, merkt es hier vor und wird automatisch benachrichtigt.
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="nowrap">Zeitfenster</th>
+          {% for day in days %}
+            <th class="nowrap">{{ day.short }}<br><small class="muted">{{ day.date|de_date('%d.%m.') }}</small></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="nowrap"><strong>{{ row.label }}</strong><br><small class="muted">Uhr</small></td>
+            {% for cell in row.cells %}
+              <td>
+                {% if cell.entries %}
+                  {% for booking in cell.entries %}
+                    <div class="occupant {{ 'own' if booking.user_id == current_user.id else ('free' if booking.status == 'released' else '') }}">
+                      <div>
+                        {% if booking.user_id == current_user.id %}
+                          <strong>du selbst</strong>
+                        {% else %}
+                          <strong>{{ booking.user.short_name }}</strong>
+                        {% endif %}
+                        {% set vehicle = booking.user.primary_vehicle %}
+                        {% if vehicle %}
+                          <br><small class="muted">{{ vehicle.display }}
+                            <span class="badge {{ 'ev' if vehicle.type == 'BEV' else 'phev' }}">{{ vehicle.type }}</span>
+                          </small>
+                        {% endif %}
+                      </div>
+                      <div class="occupant-actions">
+                        <span class="badge grey">LP {{ booking.charging_point.name }}</span>
+                        {% if booking.status == 'released' %}
+                          {% if booking.user_id == current_user.id %}
+                            <span class="badge amber">von dir freigegeben</span>
+                          {% else %}
+                            <form method="post" action="{{ url_for('main.takeover', booking_id=booking.id) }}" class="inline">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                              <input type="hidden" name="next" value="{{ url_for('main.overview', woche=week.isoformat()) }}">
+                              <button class="btn small success" type="submit">Übernehmen</button>
+                            </form>
+                          {% endif %}
+                        {% elif booking.user_id != current_user.id %}
+                          {% if cell.interest %}
+                            <form method="post" action="{{ url_for('main.set_interest') }}" class="inline">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                              <input type="hidden" name="action" value="remove">
+                              <input type="hidden" name="interest" value="{{ cell.interest.id }}">
+                              <input type="hidden" name="week" value="{{ week.isoformat() }}">
+                              <input type="hidden" name="next" value="{{ url_for('main.overview', woche=week.isoformat()) }}">
+                              <button class="btn small ghost" type="submit">Interesse zurückziehen</button>
+                            </form>
+                          {% else %}
+                            <form method="post" action="{{ url_for('main.set_interest') }}" class="inline">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                              <input type="hidden" name="action" value="add">
+                              <input type="hidden" name="week" value="{{ week.isoformat() }}">
+                              <input type="hidden" name="weekday" value="{{ cell.weekday }}">
+                              <input type="hidden" name="window" value="{{ cell.window }}">
+                              <input type="hidden" name="next" value="{{ url_for('main.overview', woche=week.isoformat()) }}">
+                              <button class="btn small secondary" type="submit">Interesse</button>
+                            </form>
+                          {% endif %}
+                          <a class="btn small ghost"
+                             href="{{ url_for('main.contact', user_id=booking.user_id, booking=booking.id) }}">Nachricht</a>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                  {% if cell.waiting %}
+                    <small class="muted">{{ cell.waiting }} auf der Warteliste</small>
+                  {% endif %}
+                {% else %}
+                  <span class="badge green">frei</span>
+                  {% if cell.interest %}
+                    <br><small class="muted">von dir vorgemerkt</small>
+                  {% endif %}
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if my_interests %}
+  <div class="card mt">
+    <h2>Deine vorgemerkten Termine</h2>
+    <p class="muted" style="font-size:.88rem">
+      Sobald eine dieser Ladezeiten freigegeben wird, erhältst du automatisch eine
+      E-Mail mit einem Ein-Klick-Link zur Übernahme.
+    </p>
+    <div class="table-wrap">
+      <table class="compact">
+        <thead><tr><th>Woche</th><th>Termin</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for interest in my_interests %}
+            <tr>
+              <td class="nowrap">{{ week_span(interest.week_start) }}</td>
+              <td>{{ interest.weekday|weekday }}, {{ window_label_at(interest.window_index) }} Uhr</td>
+              <td>
+                <span class="badge {{ 'green' if interest.status == 'notified' else 'grey' }}">
+                  {{ interest.status_label }}
+                </span>
+              </td>
+              <td class="right">
+                <form method="post" action="{{ url_for('main.set_interest') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="remove">
+                  <input type="hidden" name="interest" value="{{ interest.id }}">
+                  <input type="hidden" name="week" value="{{ week.isoformat() }}">
+                  <button class="btn small ghost" type="submit">Zurückziehen</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

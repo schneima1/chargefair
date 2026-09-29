@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}{{ spec.label }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>{{ spec.label }}</h1>
+  <div class="sub">{{ spec.summary }}</div>
+  <div class="toolbar">
+    <a class="btn secondary small" href="{{ url_for('main.methods_overview') }}">← Alle Verfahren</a>
+    {% if spec.key == active_method %}<span class="badge blue">aktuell aktiv</span>{% endif %}
+    {% if spec.uses_solver %}<span class="badge grey">CP-SAT-Optimierung</span>{% endif %}
+    <a class="btn ghost small" href="{{ url_for('main.help_page') }}">Hilfe in Alltagssprache</a>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Formale Beschreibung</strong>
+  Die Darstellung folgt einem einheitlichen Schema: Eingangsgrößen, Variablen,
+  Zielfunktionen in der Reihenfolge ihrer Anwendung, Nebenbedingungen und
+  Eigenschaften. Wer die Formeln mit den anderen Verfahren vergleicht, sieht
+  genau, worin sich die Methoden unterscheiden.
+</div>
+
+<div class="card">
+  <h2>1. Eingangsgrößen</h2>
+  <div class="table-wrap">
+    <table class="compact">
+      <thead><tr><th>Symbol</th><th>Bedeutung</th></tr></thead>
+      <tbody>
+        {% for symbol, meaning in doc.notation %}
+          <tr><td><code>{{ symbol }}</code></td><td>{{ meaning }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>2. Entscheidungsvariablen</h2>
+  <div class="table-wrap">
+    <table class="compact">
+      <thead><tr><th>Variable</th><th>Bedeutung</th></tr></thead>
+      <tbody>
+        {% for formula, explanation in doc.variables %}
+          <tr><td><code>{{ formula }}</code></td><td>{{ explanation }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>3. Zielfunktionen</h2>
+  <p class="muted" style="font-size:.88rem">
+    Die Reihenfolge ist verbindlich: Jede Stufe wird optimiert und anschließend
+    als Gleichung festgeschrieben, bevor die nächste Stufe optimiert wird. Ein
+    späteres Ziel kann ein früheres also nicht verschlechtern.
+  </p>
+  {% for formula, explanation in doc.objective %}
+    <div class="formula">
+      <div class="formula-body">{{ formula }}</div>
+      <p class="formula-note">{{ explanation }}</p>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="card mt">
+  <h2>4. Nebenbedingungen</h2>
+  <div class="table-wrap">
+    <table class="compact">
+      <thead><tr><th>Bedingung</th><th>Begründung</th></tr></thead>
+      <tbody>
+        {% for formula, explanation in doc.constraints %}
+          <tr><td><code>{{ formula }}</code></td><td>{{ explanation }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>5. Ablauf</h2>
+  <ol style="padding-left:1.2rem;margin:0">
+    {% for step in doc.algorithm %}
+      <li class="mt-sm" style="font-size:.92rem">{{ step }}</li>
+    {% endfor %}
+  </ol>
+</div>
+
+<div class="card mt">
+  <h2>6. Eigenschaften</h2>
+  <ul style="padding-left:1.2rem;margin:0">
+    {% for item in doc.properties %}
+      <li class="mt-sm" style="font-size:.92rem">{{ item }}</li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% if doc.complexity %}
+  <div class="card mt">
+    <h2>7. Rechenaufwand</h2>
+    <p style="margin:0">{{ doc.complexity }}</p>
+    <p class="muted no-margin mt-sm" style="font-size:.86rem">
+      Bezugsgröße dieser Installation: {{ points }} Ladepunkte, 4 Zeitfenster je
+      Werktag – also 20 Zeitfenster und bis zu {{ points * 20 }} Ladegelegenheiten
+      pro Woche.
+    </p>
+  </div>
+{% endif %}
+
+{% if doc.latex %}
+  <div class="card mt">
+    <h2>8. Formelsatz zum Kopieren</h2>
+    <p class="muted" style="font-size:.88rem">
+      Die Beschreibung als {{ 'LaTeX' }} – geeignet für Präsentationen, Dokumentation
+      oder Veröffentlichungen. In eigene Dokumente einfügen und mit einer
+      LaTeX-Umgebung (z. B. <code>align*</code>) rendern.
+    </p>
+    <pre class="code-block">{{ doc.latex }}</pre>
+  </div>
+{% endif %}
+
+{% if others %}
+  <div class="card mt">
+    <h2>Weitere Verfahren</h2>
+    <div class="btn-row">
+      {% for other in others %}
+        <a class="btn small secondary" href="{{ url_for('main.method_detail', key=other.key) }}">
+          {{ method_labels.get(other.key, other.key) }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

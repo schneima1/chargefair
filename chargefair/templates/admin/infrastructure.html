@@ -1,0 +1,127 @@
+{% extends "admin/base.html" %}
+{% block title %}Infrastruktur{% endblock %}
+{% block admin_title %}Ladeinfrastruktur{% endblock %}
+{% block admin_sub %}{{ capacity }} aktive Ladepunkte · {{ weekly_capacity }} Ladegelegenheiten pro Woche{% endblock %}
+
+{% block admin_content %}
+
+<div class="note green">
+  <strong>Ein Raster für alle Fahrzeuge</strong>
+  Alle Ladepunkte sind identisch aufgebaut (Typ&nbsp;2) und stehen BEV und PHEV
+  gleichermaßen zur Verfügung. Es gibt keine fahrzeugtypspezifischen Zeitfenster
+  und keine reservierten Ladepunkte. Die Kapazität jedes Zeitfensters entspricht
+  der Anzahl aktiver Ladepunkte: <strong>{{ capacity }}</strong>.
+</div>
+
+<div class="grid cols-4">
+  <div class="stat"><div class="label">Aktive Ladepunkte</div><div class="value">{{ capacity }}</div><div class="hint">Kapazität je Zeitfenster</div></div>
+  <div class="stat"><div class="label">Zeitfenster/Tag</div><div class="value">{{ windows|length }}</div><div class="hint">{{ windows|join(' · ') }}</div></div>
+  <div class="stat"><div class="label">Betriebstage</div><div class="value">{{ days|length }}</div><div class="hint">{{ days|join(', ') }}</div></div>
+  <div class="stat"><div class="label">Wochenkapazität</div><div class="value">{{ weekly_capacity }}</div><div class="hint">Ladegelegenheiten</div></div>
+</div>
+
+{% for station in stations %}
+  <div class="card mt">
+    <h2>{{ station.name }}</h2>
+    <p class="muted">{{ station.location or 'ohne Ortsangabe' }}</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ladepunkt</th><th>Anschluss</th><th>Leistung</th><th>Stellplätze</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for point in station.points %}
+            <tr>
+              <td><strong>{{ point.name }}</strong></td>
+              <td>{{ point.connector_type }}</td>
+              <td class="mono">{{ point.power_kw }} kW</td>
+              <td>
+                {% if point.parking_spaces %}
+                  {{ point.parking_spaces|map(attribute='name')|join(', ') }}
+                {% else %}<span class="muted">–</span>{% endif %}
+              </td>
+              <td><span class="badge {{ 'green' if point.is_active else 'red' }}">{{ 'aktiv' if point.is_active else 'außer Betrieb' }}</span></td>
+              <td class="right">
+                <form method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="toggle_point">
+                  <input type="hidden" name="point_id" value="{{ point.id }}">
+                  <button class="btn small {{ 'ghost' if point.is_active else 'success' }}" type="submit">
+                    {{ 'Deaktivieren' if point.is_active else 'Aktivieren' }}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endfor %}
+
+<div class="grid cols-2 mt">
+  <div class="card">
+    <h2>Ladesäule hinzufügen</h2>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_station">
+      <div class="field">
+        <label for="name">Bezeichnung</label>
+        <input type="text" name="name" id="name" required placeholder="z. B. Ladesäule 5">
+      </div>
+      <div class="field">
+        <label for="location">Standort</label>
+        <input type="text" name="location" id="location" placeholder="z. B. Parkdeck Nord">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="points">Ladepunkte</label>
+          <input type="number" name="points" id="points" value="2" min="1" max="4">
+        </div>
+        <div class="field">
+          <label for="power_kw">Leistung (kW)</label>
+          <input type="number" step="0.1" name="power_kw" id="power_kw" value="11">
+        </div>
+      </div>
+      <button class="btn" type="submit">Hinzufügen</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Stellplätze ({{ spaces|length }})</h2>
+    <div class="table-wrap" style="max-height:240px;overflow:auto">
+      <table class="compact">
+        <thead><tr><th>Name</th><th>Ladepunkt</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for space in spaces %}
+            <tr>
+              <td>{{ space.name }}</td>
+              <td>{{ space.charging_point.name if space.charging_point else '–' }}</td>
+              <td><span class="badge {{ 'green' if space.is_active else 'red' }}">{{ 'aktiv' if space.is_active else 'inaktiv' }}</span></td>
+              <td class="right">
+                <form method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="toggle_space">
+                  <input type="hidden" name="space_id" value="{{ space.id }}">
+                  <button class="btn small ghost" type="submit">Umschalten</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" class="mt-sm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_space">
+      <div class="field-row">
+        <input type="text" name="name" placeholder="z. B. P15" required>
+        <button class="btn secondary" type="submit">Stellplatz anlegen</button>
+      </div>
+    </form>
+    <p class="muted mt-sm no-margin" style="font-size:.83rem">
+      Ein Ladepunkt kann mehreren Stellplätzen zugeordnet sein. Bei der Vergabe wird
+      bevorzugt der Stellplatz des jeweiligen Ladepunkts vergeben.
+    </p>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "admin/base.html" %}
+{% block title %}Admin-Übersicht{% endblock %}
+{% block admin_title %}Administration{% endblock %}
+{% block admin_sub %}Betrieb, Vergabe und Verteilung dieser Installation im Überblick{% endblock %}
+
+{% block admin_content %}
+
+<div class="grid cols-4">
+  <div class="stat">
+    <div class="label">Aktive Ladezeit-Fenster</div>
+    <div class="value">{{ method.label }}</div>
+    <div class="hint">aktuell aktives Vergabeverfahren</div>
+  </div>
+  <div class="stat">
+    <div class="label">Auslastung diese Woche</div>
+    <div class="value">{{ counts.utilisation }} %</div>
+    <div class="hint">{{ counts.used }} von {{ counts.capacity }} Ladegelegenheiten</div>
+  </div>
+  <div class="stat">
+    <div class="label">Mitarbeiter</div>
+    <div class="value">{{ counts.users }}</div>
+    <div class="hint">{{ counts.active_users }} aktiv · {{ counts.inactive_users }} deaktiviert</div>
+  </div>
+  <div class="stat">
+    <div class="label">Ladeinfrastruktur</div>
+    <div class="value">{{ counts.active_points }}</div>
+    <div class="hint">{{ counts.stations }} Ladesäulen · {{ counts.spaces }} Stellplätze</div>
+  </div>
+</div>
+
+<div class="grid cols-2 mt">
+  <div class="card highlight">
+    <h2>Vergaberunde steuern</h2>
+    {% if open_round %}
+      <p>
+        <strong>Offene Runde: {{ week_span(open_round.week_start) }}</strong><br>
+        Verfahren: {{ method_labels.get(open_round.method, open_round.method) }}<br>
+        Teilnehmende: {{ open_round.participations|length }} · Wünsche: {{ open_round.requests|length }}
+      </p>
+      <div class="btn-row">
+        <a class="btn" href="{{ url_for('admin.round_detail', round_id=open_round.id) }}">Runde öffnen</a>
+        <a class="btn secondary" href="{{ url_for('admin.compare_round', round_id=open_round.id) }}">Verfahren vergleichen</a>
+      </div>
+    {% else %}
+      <p class="muted">Derzeit ist keine Vergaberunde geöffnet.</p>
+      <form method="post" action="{{ url_for('admin.create_round') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="week" value="{{ (today - timedelta(days=today.weekday()) + timedelta(days=7)).isoformat() }}">
+        <button class="btn" type="submit">Runde für nächste Woche anlegen</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Offene Aufgaben</h2>
+    <dl class="kv">
+      <dt>Warteliste</dt><dd>{{ waiting }} wartend · {{ offered }} mit laufendem Angebot</dd>
+      <dt>Tauschangebote</dt><dd>{{ open_offers }} offen</dd>
+      <dt>E-Mail-Queue</dt>
+      <dd>
+        {{ pending_mail }} ausstehend
+        {% if failed_mail %}· <span class="badge red">{{ failed_mail }} fehlgeschlagen</span>{% endif %}
+        <a href="{{ url_for('admin.email_queue') }}">ansehen</a>
+      </dd>
+    </dl>
+    <form method="post" action="{{ url_for('admin.demo_history') }}" class="mt-sm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn secondary small" type="submit">Demo-Historie erzeugen (für Tests)</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>Verteilung der letzten {{ report.weeks }} Wochen</h2>
+  <div class="grid cols-4">
+    <div class="stat"><div class="label">Verteilte Ladezeiten</div><div class="value">{{ report.total }}</div><div class="hint">Summe aller Buchungen</div></div>
+    <div class="stat"><div class="label">Ø je Person</div><div class="value">{{ report.mean }}</div><div class="hint">Standardabweichung {{ report.stddev }}</div></div>
+    <div class="stat"><div class="label">Minimum</div><div class="value">{{ report.min }}</div><div class="hint">am wenigsten erhalten</div></div>
+    <div class="stat"><div class="label">Maximum</div><div class="value">{{ report.max }}</div><div class="hint">am meisten erhalten</div></div>
+  </div>
+  <div class="grid cols-4 mt-sm">
+    <div class="stat"><div class="label">0 Ladezeiten</div><div class="value">{{ report.buckets['none'] }}</div><div class="hint">Personen ohne Ladezeit</div></div>
+    <div class="stat"><div class="label">1–5 Ladezeiten</div><div class="value">{{ report.buckets['low'] }}</div></div>
+    <div class="stat"><div class="label">6–10 Ladezeiten</div><div class="value">{{ report.buckets['mid'] }}</div></div>
+    <div class="stat"><div class="label">&gt; 10 Ladezeiten</div><div class="value">{{ report.buckets['high'] }}</div></div>
+  </div>
+  <p class="mt-sm"><a href="{{ url_for('admin.distribution') }}">Zur Verteilungsanalyse</a></p>
+</div>
+
+<div class="grid cols-2 mt">
+  <div class="card">
+    <h2>Kommende Vergaben</h2>
+    {% if next_allocations %}
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Woche</th><th>Verfahren</th><th>Status</th><th>Ergebnis</th></tr></thead>
+          <tbody>
+            {% for item in next_allocations %}
+              <tr>
+                <td><a href="{{ url_for('admin.round_detail', round_id=item.id) }}">{{ week_span(item.week_start) }}</a></td>
+                <td>{{ method_labels.get(item.method, item.method) }}</td>
+                <td><span class="badge {{ {'open': 'green', 'closed': 'amber', 'allocated': 'blue'}.get(item.status, 'grey') }}">{{ item.status_label }}</span></td>
+                <td>
+                  {% if item.stats and item.stats.get('assigned') is not none %}
+                    {{ item.stats.get('assigned') }} Slots / {{ item.stats.get('supplied') }} Personen
+                  {% else %}–{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">Keine geplanten Runden.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Letzte Administrationseingriffe</h2>
+    {% if recent_audit %}
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Zeit</th><th>Aktion</th><th>Details</th><th>Von</th></tr></thead>
+          <tbody>
+            {% for entry in recent_audit %}
+              <tr>
+                <td class="nowrap">{{ entry.created_at|de_datetime('%d.%m. %H:%M') }}</td>
+                <td><code style="font-size:.78rem">{{ entry.action }}</code></td>
+                <td>{{ entry.detail or '' }}</td>
+                <td>{{ entry.actor_label or '–' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="empty">Noch keine Einträge.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Belegungsliste{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Belegungsliste</h1>
+  <div class="sub">{{ week_span(week) }} · wer lädt wann an welchem Ladepunkt</div>
+  <div class="toolbar">
+    <a class="btn secondary small" href="{{ url_for('main.occupancy_view', woche=prev_week.isoformat()) }}">← Vorherige Woche</a>
+    <a class="btn secondary small" href="{{ url_for('main.occupancy_view', woche=next_week.isoformat()) }}">Nächste Woche →</a>
+    <a class="btn ghost small" href="{{ url_for('main.plan', woche=week.isoformat()) }}">Zum Wochenplan</a>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Hinweis zum Datenschutz</strong>
+  Diese Liste zeigt Namen in Kurzform und die belegten Ladepunkte, damit ihr euch
+  im Alltag abstimmen könnt. Telefonnummern werden nur angezeigt, wenn sie im
+  Profil hinterlegt wurden – jede Person entscheidet selbst darüber.
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="nowrap">Zeitfenster</th>
+          {% for day in days %}
+            <th>{{ day.name }}<br><small class="muted">{{ day.date|de_date('%d.%m.') }}</small></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="nowrap"><strong>{{ row.label }}</strong><br><small class="muted">Uhr</small></td>
+            {% for cell in row.cells %}
+              <td>
+                {% if cell.entries %}
+                  {% for booking in cell.entries %}
+                    <div style="margin-bottom:.35rem">
+                      <strong>{{ booking.user.short_name }}</strong>
+                      {% set vehicle = booking.user.primary_vehicle %}
+                      {% if vehicle %}
+                        <span class="badge {{ 'ev' if vehicle.type == 'BEV' else 'phev' }}">{{ vehicle.type }}</span>
+                      {% endif %}
+                      <div class="meta muted" style="font-size:.8rem">
+                        Ladepunkt {{ booking.charging_point.name }}
+                        {% if booking.parking_space %}· {{ booking.parking_space.name }}{% endif %}
+                        {% if booking.status == 'released' %}
+                          · <span class="badge amber">frei geworden</span>
+                        {% endif %}
+                        {% if booking.user.phone %}
+                          · <a href="tel:{{ booking.user.phone }}">Kontakt</a>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <span class="badge green">frei</span>
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="muted mt-sm">
+  Insgesamt stehen pro Zeitfenster {{ capacity }} Ladepunkte zur Verfügung.
+</p>
+
+{% endblock %}

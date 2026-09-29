@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}Hilfe &amp; Regeln{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Hilfe &amp; Regeln</h1>
+  <div class="sub">Wie die Vergabe funktioniert, was die Farben bedeuten und welche Regeln gelten</div>
+</div>
+
+<div class="grid cols-3">
+  <div class="stat">
+    <div class="label">Ladepunkte</div>
+    <div class="value">{{ points }}</div>
+    <div class="hint">alle für BEV und PHEV nutzbar</div>
+  </div>
+  <div class="stat">
+    <div class="label">Zeitfenster pro Tag</div>
+    <div class="value">{{ windows|length }}</div>
+    <div class="hint">{{ windows|join(' · ') }} Uhr</div>
+  </div>
+  <div class="stat">
+    <div class="label">Ladezeiten pro Person und Woche</div>
+    <div class="value">{{ max_regular }}</div>
+    <div class="hint">garantiert, weitere nach freier Kapazität</div>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>1. Ladeinfrastruktur: ein Raster für alle Fahrzeuge</h2>
+  <p>
+    {{ points }} Ladepunkte (Typ&nbsp;2, Wechselstrom) stehen an allen Werktagen in
+    {{ windows|length }} Zeitfenstern zur Verfügung:
+  </p>
+  <ul style="padding-left:1.2rem">
+    {% for window in windows %}
+      <li><strong>{{ window }} Uhr</strong></li>
+    {% endfor %}
+  </ul>
+  <p class="no-margin">
+    Zwischen den Fenstern liegen 30 Minuten Puffer, damit Fahrzeuge umgeparkt werden
+    können. <strong>Es gibt keine Trennung nach Fahrzeugtyp:</strong> BEV und PHEV
+    nutzen dieselben Ladepunkte und dieselben Zeitfenster. Die Fahrzeugart ist nur
+    eine Information im Profil – sie schränkt die Buchung nicht ein.
+  </p>
+</div>
+
+<div class="card mt">
+  <h2>2. Wie oft kann ich laden?</h2>
+  <p>
+    Du gibst bei deinen Wünschen an, <strong>wie oft du in der Woche laden
+    möchtest</strong> – zum Beispiel 1×, 2× oder 3×. Das System behandelt das
+    zweistufig:
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Stufe</th><th>Regel</th><th>Bedeutung für dich</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>1. Grundversorgung</strong></td>
+          <td>Jede Person erhält <strong>{{ max_regular }} Ladezeit pro Woche</strong>.</td>
+          <td>Dein Anspruch – unabhängig davon, wie viele Personen sonst laden möchten.</td>
+        </tr>
+        <tr>
+          <td><strong>2. Zusatzwünsche</strong></td>
+          <td>Verbleibende Plätze werden reihum verteilt: erst die zweite Ladezeit für alle, die eine möchten, dann die dritte.</td>
+          <td>Gibst du 3× an, bekommst du zusätzliche Ladezeiten nur, wenn Kapazität frei bleibt.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note green">
+    <strong>Wichtig</strong>
+    Eine zweite Ladezeit erhält niemand, solange eine andere Person noch keine
+    hat. Wenn die Nachfrage die Kapazität übersteigt, wird also trotz der
+    Zusatzwünsche zuerst die Grundversorgung <em>aller</em> Personen
+    sichergestellt. Bei personenbezogenen Grenzen gibt zusätzlich dein eigenes
+    Kontingent im Profil die Obergrenze vor.
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>3. Warum es keine „wer zuerst klickt“-Buchung gibt</h2>
+  <p>
+    Bei einem Ansturm um 08:00 Uhr wären die beliebten Zeiten in Sekunden weg. Wer
+    im Schichtdienst arbeitet, im Homeoffice ist oder Urlaub hat, hätte dauerhaft
+    das Nachsehen. Deshalb läuft die Vergabe in <strong>Runden</strong>:
+  </p>
+  <ol style="padding-left:1.2rem">
+    <li>Du gibst deine Wunschzeiten mit Priorität ab (1 = wichtigster Wunsch).</li>
+    <li>Der Zeitpunkt der Abgabe spielt <em>keine</em> Rolle.</li>
+    <li>Nach Ablauf der Frist verteilt das System die Plätze nach dem aktiven Verfahren.</li>
+    <li>Du erhältst eine E-Mail mit dem Ergebnis.</li>
+  </ol>
+  <p class="no-margin">
+    Die drei Ebenen der Vergabe: <strong>Grundversorgung</strong> (jede Person
+    erhält zuerst ihre garantierte Ladezeit) → <strong>Zusatzwünsche</strong>
+    (weitere Ladezeiten, sobald alle versorgt sind) → <strong>Restkapazität</strong>
+    (frei gebliebene Plätze können zusätzlich gebucht werden). Bei knappen Plätzen
+    entscheidet innerhalb dieser Ebenen der Zufall – nicht die Person.
+  </p>
+</div>
+
+<div class="card mt">
+  <h2>4. Das aktive Vergabeverfahren</h2>
+  <p>
+    Die Administration legt das Verfahren fest. In dieser Installation ist es
+    <strong><a href="{{ url_for('main.method_detail', key=active_method) }}">{{ method_labels.get(active_method, active_method) }}</a></strong>.
+    Zu jedem Verfahren gibt es eine
+    <a href="{{ url_for('main.methods_overview') }}">formale, mathematische Beschreibung</a>
+    mit Variablen, Zielfunktionen und Nebenbedingungen – hilfreich, wenn du
+    nachvollziehen möchtest, wie eine Zuteilung zustande kommt.
+  </p>
+  {% for method in methods %}
+    <div class="item mt-sm" style="{{ 'border-left:4px solid var(--primary)' if method.key == active_method else '' }}">
+      <div class="head">
+        <div>
+          <div class="title">
+            {{ method.label }}
+            {% if method.key == active_method %}<span class="badge blue">aktiv</span>{% endif %}
+            {% if method.uses_solver %}<span class="badge grey">Optimierung</span>{% endif %}
+          </div>
+          <div class="meta">{{ method.summary }}</div>
+        </div>
+      </div>
+      <p class="mt-sm" style="font-size:.88rem">{{ method.details }}</p>
+      <div class="grid cols-2">
+        <div>
+          <strong style="font-size:.84rem">Vorteile</strong>
+          <ul style="margin:.2rem 0 0 1.1rem;padding:0;font-size:.84rem">
+            {% for item in method.pros %}<li>{{ item }}</li>{% endfor %}
+          </ul>
+        </div>
+        <div>
+          <strong style="font-size:.84rem">Zu beachten</strong>
+          <ul style="margin:.2rem 0 0 1.1rem;padding:0;font-size:.84rem">
+            {% for item in method.cons %}<li>{{ item }}</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+      <p style="margin:.5rem 0 0">
+        <a class="btn small secondary" href="{{ url_for('main.method_detail', key=method.key) }}">
+          Mathematik &amp; Formeln
+        </a>
+      </p>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="card mt">
+  <h2>5. Wer bekommt einen knappen Platz?</h2>
+  <p>
+    Grundsätzlich gilt die Reihenfolge der Vergabe: zuerst die Grundversorgung
+    aller Personen, dann die Zusatzwünsche. Stehen zwei Personen mit
+    gleichwertigen Wünschen um denselben knappen Platz, entscheidet der
+    <strong>Zufall</strong>.
+  </p>
+  <div class="note green">
+    <strong>Es gibt kein Punktesystem und keine Wartelisten-Priorität</strong>
+    Niemand wird bevorzugt, weil er oder sie länger auf einen Ladeplatz gewartet
+    hat, in den letzten Wochen seltener laden konnte oder besonders oft Termine
+    freigibt. Alle Teilnehmenden einer Vergaberunde sind gleichgestellt. Das
+    vermeidet den Effekt, dass sich über Monate hinweg ein Vorteil aufbaut.
+  </div>
+  <p class="muted no-margin">
+    Damit die Vergabe prüfbar bleibt, wird der Zufall mit dem Startwert der Woche
+    gezogen und ist wiederholbar. Die Administration kann das Ergebnis der Runde
+    jederzeit einsehen und neu berechnen.
+  </p>
+</div>
+
+<div class="card mt">
+  <h2>6. Wenn du einen Termin nicht nutzen kannst</h2>
+  <p>
+    Gib den Termin frei – so wird er wieder nutzbar. Zwei Wege stehen offen:
+  </p>
+  <div class="table-wrap">
+    <table class="compact">
+      <thead><tr><th>Weg</th><th>Was passiert</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Freigeben</strong></td>
+          <td>Der Platz wird sofort an alle weitergegeben, die
+            <em>Interesse</em> an genau diesem Termin hinterlegt haben – inklusive
+            Ein-Klick-Link per E-Mail.</td>
+        </tr>
+        <tr>
+          <td><strong>Warteliste</strong></td>
+          <td>Ist ein Zeitfenster generell voll, kannst du dich auf die Warteliste
+            setzen lassen und wirst automatisch benachrichtigt.</td>
+        </tr>
+        <tr>
+          <td><strong>Board / Tausch</strong></td>
+          <td>Für kurzfristige Absprachen oder wenn du einen anderen Termin
+            bevorzugst.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>7. Farben im Wochenplan</h2>
+  <div class="legend">
+    <span><i class="dot mine"></i> <strong>deine Ladezeit</strong> – dir zugeteilt oder von dir gebucht</span>
+    <span><i class="dot free"></i> <strong>frei</strong> – mindestens ein Ladepunkt verfügbar</span>
+    <span><i class="dot released"></i> <strong>freigegeben</strong> – jemand kann nicht laden, du kannst übernehmen</span>
+    <span><i class="dot full"></i> <strong>belegt</strong> – alle Ladepunkte vergeben, Warteliste möglich</span>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>8. Häufige Fragen</h2>
+
+  <details>
+    <summary>Ich brauche mehr als eine Ladezeit pro Woche – wie stelle ich das ein?</summary>
+    <p>Gib bei deinen Wünschen im <a href="{{ url_for('main.plan') }}">Wochenplan</a>
+      an, wie oft du laden möchtest (zum Beispiel 3×). Deine garantierte Ladezeit
+      erhältst du in jedem Fall. Zusätzliche Ladezeiten werden verteilt, sobald
+      alle anderen ihre Grundversorgung haben – zuerst bekommt jede Person eine
+      zweite Ladezeit, erst danach eine dritte. Zusätzlich kannst du im
+      <a href="{{ url_for('auth.profile') }}">Profil</a> dein persönliches
+      Wochenkontingent festlegen.</p>
+  </details>
+
+  <details>
+    <summary>Was passiert, wenn mehr Personen laden wollen als Plätze frei sind?</summary>
+    <p>Dann greift die Reihenfolge der Vergabe: zuerst die Grundversorgung aller
+      Personen, dann die Zusatzwünsche. Wer innerhalb einer Stufe einen Platz
+      erhält, entscheidet bei gleichwertigen Wünschen der Zufall – es gibt keine
+      Bevorzugung nach Wartezeit oder früheren Ladezeiten. Zusatzwünsche können
+      in so einer Woche nicht erfüllt werden; die garantierte Ladezeit bleibt
+      aber bestehen.</p>
+  </details>
+
+  <details>
+    <summary>Was passiert, wenn ich meine Ladezeit nicht nutzen kann?</summary>
+    <p>Gib sie im Bereich <a href="{{ url_for('main.my_bookings') }}">Meine Ladezeiten</a> frei.
+      Alle Personen, die Interesse an diesem Termin hinterlegt haben, werden
+      automatisch per E-Mail informiert und können ihn mit einem Klick
+      übernehmen. Bitte erst stornieren, wenn der Platz gar nicht mehr gebraucht
+      wird – beim Stornieren entfällt die bevorzugte Benachrichtigung.</p>
+  </details>
+
+  <details>
+    <summary>Ich arbeite in Schichten. Wie bekomme ich passende Zeiten?</summary>
+    <p>Trage im <a href="{{ url_for('auth.profile') }}">Profil</a> deine bevorzugten
+      Wochentage und die Reihenfolge der Zeitfenster ein. Bei der Vergabe werden
+      deine Wunschzeiten zuerst geprüft. Zusätzlich kannst du eine regelmäßige
+      Ladezeit einrichten – auch beschränkt auf gerade oder ungerade Kalenderwochen.</p>
+  </details>
+
+  <details>
+    <summary>Ich fahre einen PHEV – habe ich Nachteile?</summary>
+    <p>Nein. Alle {{ points }} Ladepunkte und alle Zeitfenster stehen BEV und PHEV
+      gleichermaßen offen. Es gibt keine getrennten Zeitraster und keine
+      Sonderregeln für einzelne Fahrzeugtypen.</p>
+  </details>
+
+  <details>
+    <summary>Was ist der Unterschied zwischen Freigeben und Stornieren?</summary>
+    <p><strong>Freigeben</strong> heißt: Du kannst nicht laden, möchtest den Termin
+      aber grundsätzlich behalten. Alle Personen, die Interesse an genau diesem
+      Termin hinterlegt haben, werden sofort per E-Mail informiert und können ihn
+      mit einem Klick übernehmen. <strong>Stornieren</strong> heißt: Du gibst den
+      Termin endgültig auf – der Platz wird frei, aber ohne bevorzugte
+      Benachrichtigung.</p>
+  </details>
+
+  <details>
+    <summary>Wie erfahre ich, dass ich einen Platz bekommen habe?</summary>
+    <p>Per E-Mail, sobald die Vergabe abgeschlossen ist. Zusätzlich findest du alle
+      Termine im <a href="{{ url_for('main.plan') }}">Wochenplan</a> und in
+      <a href="{{ url_for('main.my_bookings') }}">Meine Ladezeiten</a>. Vor Beginn
+      deiner Ladezeit erhältst du eine Erinnerung, kurz vor Ende einen Hinweis zum
+      Umparken.</p>
+  </details>
+
+  <details>
+    <summary>Welche Daten werden über mich gespeichert?</summary>
+    <p>Name, Firmen-E-Mail, optional Telefonnummer und Abteilung sowie die
+      Fahrzeugdaten (Typ, Hersteller, Modell, Kennzeichen, Ladeleistung).
+      Keine Privatadresse, kein Geburtsdatum, keine Standortdaten. Die
+      Telefonnummer ist nur sichtbar, wenn du sie selbst einträgst. Beim Austritt
+      kann das Konto anonymisiert werden – Statistiken bleiben dann ohne Personenbezug
+      erhalten.</p>
+  </details>
+</div>
+
+{% endblock %}

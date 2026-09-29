@@ -1,0 +1,99 @@
+{% extends "admin/base.html" %}
+{% block title %}Verfahrensvergleich{% endblock %}
+{% block admin_title %}Verfahrensvergleich{% endblock %}
+{% block admin_sub %}Alle Verfahren auf dieselben Wünsche angewendet – ohne das echte Ergebnis zu verändern{% endblock %}
+
+{% block admin_content %}
+
+<div class="note">
+  <strong>Simulation ohne Nebenwirkungen</strong>
+  Die folgende Auswertung wendet jedes Verfahren auf die aktuellen Wünsche der
+  Runde {{ week_span(round_obj.week_start) }} an. Es werden <em>keine</em> Buchungen
+  angelegt und <em>keine</em> E-Mails versendet. So lässt sich die Wirkung des
+  Verfahrens vor der Entscheidung beurteilen.
+</div>
+
+{% if not problem %}
+  <div class="card"><p class="empty">
+    Für diese Runde liegen keine Wünsche oder keine freie Kapazität vor – ein
+    Vergleich ist derzeit nicht möglich.
+  </p></div>
+{% else %}
+  <div class="card">
+    <h2>Ausgangslage</h2>
+    <dl class="kv">
+      <dt>Teilnehmende mit Wünschen</dt><dd>{{ problem.users|length }}</dd>
+      <dt>Freie Plätze</dt><dd>{{ problem.total_capacity }}</dd>
+      <dt>Garantierte Grundversorgung</dt>
+      <dd>{{ problem.guaranteed_demand }} Plätze für {{ problem.users|length }} Personen</dd>
+      <dt>Gesamtwünsche</dt><dd>{{ problem.requested }}</dd>
+      <dt>Übernachfrage</dt>
+      <dd>
+        {% if problem.requested > problem.total_capacity %}
+          <span class="badge amber">ja ({{ problem.requested - problem.total_capacity }} Wünsche zu viel)</span>
+        {% else %}
+          <span class="badge green">nein</span>
+        {% endif %}
+      </dd>
+      <dt>Grundversorgung möglich</dt>
+      <dd>
+        {% if problem.guarantee_is_feasible %}
+          <span class="badge green">ja – alle Personen können versorgt werden</span>
+        {% else %}
+          <span class="badge red">nein – es fehlen {{ problem.guaranteed_demand - problem.total_capacity }} Plätze</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+
+  <div class="card mt">
+    <h2>Ergebnisse im Vergleich</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Verfahren</th>
+            <th>Versorgte Personen</th>
+            <th>Verteilte Ladezeiten</th>
+            <th>Ohne Platz</th>
+            <th>Erstwunsch erfüllt</th>
+            <th>Ø Wunschrang</th>
+            <th>Rangordnung</th>
+            <th>Rechenzeit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr {% if row.spec.key == round_obj.method %}style="background:var(--primary-soft)"{% endif %}>
+              <td>
+                <strong>{{ row.spec.label }}</strong>
+                {% if row.spec.key == round_obj.method %}<span class="badge blue">aktiv</span>{% endif %}
+                <div class="meta muted" style="font-size:.8rem">{{ row.spec.summary }}</div>
+              </td>
+              <td class="mono">{{ row.supplied }} / {{ problem.users|length }}</td>
+              <td class="mono">{{ row.assigned }} ({{ row.util }} %)</td>
+              <td class="mono">{{ row.unassigned }}</td>
+              <td class="mono">{{ row.top_hits }} / {{ row.assigned if row.assigned else 1 }}</td>
+              <td class="mono">{{ row.mean_rank }}</td>
+              <td style="min-width:150px">
+                <div class="bar"><span style="width: {{ (row.supplied / problem.users|length * 100)|round(0)|int }}%"></span></div>
+              </td>
+              <td class="mono">{{ row.wall_time }} s</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted mt-sm">
+      „Versorgte Personen“ und „ohne Platz“ sind bei knapper Kapazität die
+      entscheidenden Werte. „Erstwunsch erfüllt“ und „Ø Wunschrang“ zeigen, wie
+      gut die Wünsche getroffen werden. Ein hoher Wert beim Erstwunsch bei
+      gleichzeitig schlechter Versorgung wäre ein Zeichen für Bevorzugung – genau
+      das verhindern die Standardverfahren durch ihre Reihenfolge der Ziele.
+    </p>
+  </div>
+{% endif %}
+
+<p class="mt"><a class="btn secondary" href="{{ url_for('admin.round_detail', round_id=round_obj.id) }}">Zurück zur Runde</a></p>
+
+{% endblock %}

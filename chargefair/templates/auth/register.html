@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Registrieren{% endblock %}
+{% block content %}
+<div style="max-width:720px;margin:1.5rem auto">
+  <div class="card">
+    <h1>Mitarbeiterkonto erstellen</h1>
+    <p class="muted">
+      Für die Nutzung wird ein Registrierungscode benötigt, den die Administration
+      bereitstellt. Nach dem Absenden erhältst du eine E-Mail mit einem
+      Bestätigungslink.
+    </p>
+
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <fieldset>
+        <legend>Zugangsdaten</legend>
+        <div class="field">
+          <label for="token">Registrierungscode</label>
+          <input type="text" name="token" id="token" value="{{ values.get('token', '') }}"
+                 placeholder="z. B. 1A2B-3C4D-5E6F" style="text-transform:uppercase">
+          <div class="help">Erhältlich bei der Administration oder im Intranet.</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="first_name">Vorname</label>
+            <input type="text" name="first_name" id="first_name" value="{{ values.get('first_name', '') }}" required>
+          </div>
+          <div class="field">
+            <label for="last_name">Nachname</label>
+            <input type="text" name="last_name" id="last_name" value="{{ values.get('last_name', '') }}" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="email">Firmen-E-Mail-Adresse</label>
+          <input type="email" name="email" id="email" value="{{ values.get('email', '') }}" required
+                 autocomplete="username">
+          <div class="help">Bitte die dienstliche Adresse verwenden – darüber laufen alle Benachrichtigungen.</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="password">Passwort</label>
+            <input type="password" name="password" id="password" required autocomplete="new-password">
+            <div class="help">Mindestens 10 Zeichen, mit Buchstaben und Ziffer.</div>
+          </div>
+          <div class="field">
+            <label for="password_repeat">Passwort wiederholen</label>
+            <input type="password" name="password_repeat" id="password_repeat" required autocomplete="new-password">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="phone">Telefonnummer (optional)</label>
+            <input type="tel" name="phone" id="phone" value="{{ values.get('phone', '') }}"
+                   placeholder="+49 …">
+            <div class="help">Nur sichtbar, wenn du sie hier angibst.</div>
+          </div>
+          <div class="field">
+            <label for="department">Abteilung (optional)</label>
+            <input type="text" name="department" id="department" value="{{ values.get('department', '') }}">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Fahrzeug</legend>
+        <p class="muted" style="font-size:.86rem">
+          Die Fahrzeugart ist eine reine Information. Alle Ladepunkte und
+          Zeitfenster stehen BEV und PHEV gleichermaßen zur Verfügung.
+        </p>
+        <div class="field-row">
+          <div class="field">
+            <label for="vehicle_type">Fahrzeugtyp</label>
+            <select name="vehicle_type" id="vehicle_type">
+              <option value="BEV" {% if values.get('vehicle_type') == 'BEV' %}selected{% endif %}>BEV (rein elektrisch)</option>
+              <option value="PHEV" {% if values.get('vehicle_type') == 'PHEV' %}selected{% endif %}>PHEV (Plug-in-Hybrid)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="manufacturer">Hersteller</label>
+            <input type="text" name="manufacturer" id="manufacturer" value="{{ values.get('manufacturer', '') }}"
+                   placeholder="z. B. VW">
+          </div>
+          <div class="field">
+            <label for="model">Modell</label>
+            <input type="text" name="model" id="model" value="{{ values.get('model', '') }}"
+                   placeholder="z. B. ID.3">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="license_plate">Kennzeichen</label>
+            <input type="text" name="license_plate" id="license_plate" value="{{ values.get('license_plate', '') }}"
+                   placeholder="z. B. KA-AB 1234">
+          </div>
+          <div class="field">
+            <label for="power_kw">Ladeleistung (kW)</label>
+            <input type="number" step="0.1" min="1" max="50" name="power_kw" id="power_kw"
+                   value="{{ values.get('power_kw') or 11 }}">
+          </div>
+          <div class="field">
+            <label for="battery_kwh">Batteriekapazität (kWh, optional)</label>
+            <input type="number" step="0.1" min="1" max="200" name="battery_kwh" id="battery_kwh"
+                   value="{{ values.get('battery_kwh', '') }}">
+          </div>
+        </div>
+      </fieldset>
+
+      <button class="btn" type="submit">Konto erstellen</button>
+      <a class="btn ghost" href="{{ url_for('auth.login') }}">Ich habe bereits ein Konto</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

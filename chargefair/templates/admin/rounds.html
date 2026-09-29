@@ -1,0 +1,183 @@
+{% extends "admin/base.html" %}
+{% block title %}Vergaberunden{% endblock %}
+{% block admin_title %}Vergaberunden{% endblock %}
+{% block admin_sub %}Wochen planen, Verfahren festlegen und die Vergabe starten{% endblock %}
+
+{% block admin_content %}
+
+<div class="card highlight">
+  <h2>Vergabeverfahren auswählen</h2>
+  <p class="muted">
+    Das Verfahren bestimmt, wie die Wunschzeiten auf die verfügbaren Ladepunkte
+    verteilt werden. Die Auswahl gilt als Standard für alle neuen Runden; innerhalb
+    einer Runde kann sie jederzeit geändert werden. Die Beschreibungen werden auch
+    den Mitarbeitenden auf der Hilfeseite angezeigt.
+  </p>
+  <form method="post" action="{{ url_for('admin.set_default_method') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ url_for('admin.rounds') }}">
+    <div class="option-cards">
+      {% for method in methods %}
+        <label class="option {{ 'selected' if method.key == active_method }}">
+          <input type="radio" name="method" value="{{ method.key }}"
+                 {% if method.key == active_method %}checked{% endif %}>
+          <span class="title">
+            {{ method.label }}
+            {% if method.key == 'lexicographic' %}<span class="badge green">empfohlen</span>{% endif %}
+            {% if method.uses_solver %}<span class="badge grey">Optimierung</span>{% endif %}
+          </span>
+          <span class="desc">{{ method.summary }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    <button class="btn mt" type="submit">Als Standardverfahren speichern</button>
+  </form>
+</div>
+
+<div class="card mt highlight">
+  <h2>Vergabephase anlegen (empfohlen: 4 Wochen)</h2>
+  <p class="muted" style="font-size:.9rem">
+    Eine Phase bündelt mehrere Wochen: Die Mitarbeitenden geben ihre Wünsche
+    <strong>einmal</strong> für den gesamten Zeitraum ab, die Vergabe läuft
+    anschließend automatisch für jede Woche. Das ist der übliche Betrieb – einzelne
+    Runden brauchst du nur für Sonderfälle.
+  </p>
+  <form method="post" action="{{ url_for('admin.create_phase') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field-row">
+      <div class="field">
+        <label for="phase_week">Erste Woche (Montag)</label>
+        <input type="date" name="week" id="phase_week" value="{{ default_week.isoformat() }}" required>
+      </div>
+      <div class="field">
+        <label for="phase_weeks">Anzahl Wochen</label>
+        <input type="number" name="weeks" id="phase_weeks" min="1" max="12" value="{{ phase_weeks_default }}">
+        <div class="help">Standard und Empfehlung: 4 Wochen.</div>
+      </div>
+      <div class="field">
+        <label for="phase_method">Verfahren</label>
+        <select name="method" id="phase_method">
+          {% for method in methods %}
+            <option value="{{ method.key }}" {% if method.key == active_method %}selected{% endif %}>{{ method.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="phase_closes">Frist für Wünsche</label>
+        <input type="datetime-local" name="closes_at" id="phase_closes">
+        <div class="help">Leer lassen = Vortag 18:00 Uhr.</div>
+      </div>
+    </div>
+    <div class="checkline">
+      <input type="checkbox" name="announce" id="phase_announce" value="1" checked>
+      <label for="phase_announce" style="margin:0">Mitarbeitende sofort per E-Mail einladen</label>
+    </div>
+    <button class="btn mt-sm" type="submit">Phase anlegen</button>
+  </form>
+</div>
+
+{% if phases %}
+  <div class="card mt">
+    <h2>Phasen</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Zeitraum</th><th>Wochen</th><th>Verfahren</th><th>Status</th><th>Ergebnis</th><th>Einladung</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for phase in phases %}
+            <tr {% if current_phase and phase.id == current_phase.id %}style="background:var(--primary-soft)"{% endif %}>
+              <td class="nowrap">
+                <strong>{{ phase.period_label }}</strong>
+                {% if current_phase and phase.id == current_phase.id %}
+                  <br><span class="badge blue">aktuelle Phase</span>
+                {% endif %}
+              </td>
+              <td class="mono">{{ phase.weeks }}</td>
+              <td>{{ method_labels.get(phase.method, phase.method) }}</td>
+              <td><span class="badge {{ {'open': 'green', 'allocated': 'blue', 'closed': 'grey'}.get(phase.status, 'grey') }}">{{ phase.status_label }}</span></td>
+              <td>
+                {% if phase.stats %}
+                  {{ phase.stats.get('assigned', 0) }} Slots in {{ phase.stats.get('weeks', [])|length }} Wochen
+                {% else %}–{% endif %}
+              </td>
+              <td class="nowrap">
+                {% if phase.notified_at %}{{ phase.notified_at|de_date }}{% else %}<span class="muted">offen</span>{% endif %}
+              </td>
+              <td class="right"><a class="btn small secondary" href="{{ url_for('admin.phase_detail', phase_id=phase.id) }}">Öffnen</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card mt">
+  <h2>Einzelne Runde anlegen (Sonderfall)</h2>
+  <form method="post" action="{{ url_for('admin.create_round') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field-row">
+      <div class="field">
+        <label for="week">Montag der Zielwoche</label>
+        <input type="date" name="week" id="week" value="{{ default_week.isoformat() }}" required>
+        <div class="help">Die Woche, für die Mitarbeitende Wünsche abgeben.</div>
+      </div>
+      <div class="field">
+        <label for="method">Verfahren für diese Runde</label>
+        <select name="method" id="method">
+          {% for method in methods %}
+            <option value="{{ method.key }}" {% if method.key == active_method %}selected{% endif %}>{{ method.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field" style="align-self:end">
+        <button class="btn" type="submit">Runde öffnen</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card mt">
+  <h2>Alle Runden</h2>
+  {% if entries %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Woche</th><th>Zeitraum</th><th>Verfahren</th><th>Status</th>
+            <th>Teilnehmende</th><th>Wünsche</th><th>Ergebnis</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in entries %}
+            <tr>
+              <td class="nowrap"><strong>KW {{ item.week_start.isocalendar().week }}</strong></td>
+              <td class="nowrap">{{ item.week_start|de_date }} – {{ (item.week_start + timedelta(days=6))|de_date }}<br>
+                <small class="muted">{{ 'laufend' if item.week_start == today - timedelta(days=today.weekday()) else ('vergangen' if item.week_start < today else 'geplant') }}</small>
+              </td>
+              <td>{{ method_labels.get(item.method, item.method) }}</td>
+              <td><span class="badge {{ {'open': 'green', 'closed': 'amber', 'allocated': 'blue'}.get(item.status, 'grey') }}">{{ item.status_label }}</span></td>
+              <td class="mono">{{ item.participations|length }}</td>
+              <td class="mono">{{ item.requests|length }}</td>
+              <td>
+                {% if item.stats and item.stats.get('assigned') is not none %}
+                  {{ item.stats.get('assigned') }} / {{ item.stats.get('capacity') }}
+                  <small class="muted">({{ (item.stats.get('utilisation', 0) * 100)|round(0)|int }} %)</small>
+                {% else %}–{% endif %}
+              </td>
+              <td class="right nowrap">
+                <a class="btn small secondary" href="{{ url_for('admin.round_detail', round_id=item.id) }}">Details</a>
+                <a class="btn small ghost" href="{{ url_for('admin.compare_round', round_id=item.id) }}">Vergleich</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">Noch keine Runden angelegt.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

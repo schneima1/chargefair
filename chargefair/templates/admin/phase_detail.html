@@ -1,0 +1,172 @@
+{% extends "admin/base.html" %}
+{% block title %}Vergabephasen{% endblock %}
+{% block admin_title %}Vergabephase {{ phase.name }}{% endblock %}
+{% block admin_sub %}Eine Phase umfasst mehrere Wochen – Wünsche werden einmal abgegeben, dann wird alles auf einmal verteilt{% endblock %}
+
+{% block admin_content %}
+
+<div class="grid cols-4">
+  <div class="stat">
+    <div class="label">Status</div>
+    <div class="value" style="font-size:1.25rem">{{ phase.status_label }}</div>
+    <div class="hint">
+      {% if phase.closes_at %}Frist {{ phase.closes_at|de_datetime }}{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Umfang</div>
+    <div class="value">{{ phase.weeks }}</div>
+    <div class="hint">Wochen · {{ phase.period_label }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Verfahren</div>
+    <div class="value" style="font-size:1.1rem">{{ method.label }}</div>
+    <div class="hint"><a href="{{ url_for('main.method_detail', key=method.key) }}">Formale Beschreibung</a></div>
+  </div>
+  <div class="stat">
+    <div class="label">Einladungen</div>
+    <div class="value" style="font-size:1.1rem">
+      {{ phase.notified_at|de_datetime('%d.%m. %H:%M') if phase.notified_at else '–' }}
+    </div>
+    <div class="hint">{{ 'versendet' if phase.notified_at else 'noch nicht versendet' }}</div>
+  </div>
+</div>
+
+{% if phase.status == 'open' %}
+  <div class="card highlight mt">
+    <h2>Ablauf dieser Phase</h2>
+    <p class="muted" style="font-size:.9rem">
+      Die Mitarbeitenden geben ihre Wünsche einmal für alle {{ phase.weeks }} Wochen
+      ab. Danach wird jede Woche einzeln verteilt – die Kapazität und die Wünsche
+      unterscheiden sich je Woche, deshalb läuft die Vergabe pro Woche.
+    </p>
+    <div class="btn-row">
+      <form method="post" action="{{ url_for('admin.phase_announce', phase_id=phase.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn secondary" type="submit">Einladungen versenden</button>
+      </form>
+      <form method="post" action="{{ url_for('admin.phase_remind', phase_id=phase.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn ghost" type="submit">Frist-Erinnerung senden</button>
+      </form>
+      <form method="post" action="{{ url_for('admin.phase_allocate', phase_id=phase.id) }}"
+            onsubmit="return confirm('Vergabe für alle {{ phase.weeks }} Wochen durchführen? Alle Teilnehmenden werden per E-Mail informiert.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="method" value="{{ phase.method }}">
+        <button class="btn success" type="submit">Vergabe für alle Wochen starten</button>
+      </form>
+    </div>
+    <dl class="kv mt-sm">
+      <dt>Frist</dt>
+      <dd>
+        {% if phase.closes_at %}{{ phase.closes_at|de_datetime }}{% else %}nicht gesetzt{% endif %}
+        {% if reminder_days %}
+          · automatische Erinnerung {{ reminder_days }} Tag(e) vorher
+        {% else %}
+          · automatische Erinnerung deaktiviert
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+{% else %}
+  <div class="card mt success">
+    <h2>Phase abgeschlossen</h2>
+    <p style="margin:0">
+      Verteilt am {{ phase.allocated_at|de_datetime }}.
+      {% if phase.stats %}
+        Insgesamt {{ phase.stats.get('assigned', 0) }} Ladezeiten in
+        {{ phase.stats.get('weeks', [])|length }} Wochen.
+      {% endif %}
+    </p>
+    <p class="muted no-margin mt-sm" style="font-size:.86rem">
+      Einzelne Wochen lassen sich unten erneut verteilen, wenn sich etwas geändert hat.
+    </p>
+  </div>
+{% endif %}
+
+<div class="card mt">
+  <h2>Wochen dieser Phase</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Woche</th><th>Status</th><th>Teilnehmende</th><th>Wünsche</th>
+          <th>Belegt</th><th>Ergebnis</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="nowrap">
+              <strong>KW {{ row.round.week_start.isocalendar().week }}</strong><br>
+              <small class="muted">{{ row.round.week_start|de_date }} – {{ (row.round.week_start + timedelta(days=6))|de_date }}</small>
+            </td>
+            <td>
+              <span class="badge {{ {'open': 'green', 'closed': 'amber', 'allocated': 'blue'}.get(row.round.status, 'grey') }}">
+                {{ row.round.status_label }}
+              </span>
+            </td>
+            <td class="mono">{{ row.participations }}</td>
+            <td class="mono">{{ row.requests }}</td>
+            <td class="mono">{{ row.used }} / {{ row.capacity }}</td>
+            <td>
+              {% if row.round.stats and row.round.stats.get('assigned') is not none %}
+                {{ row.round.stats.get('assigned') }} Slots an {{ row.round.stats.get('supplied') }} Personen
+                {% if row.round.stats.get('guarantee_fulfilled') %}
+                  <br><span class="badge green">Grundversorgung erfüllt</span>
+                {% else %}
+                  <br><span class="badge amber">Grundversorgung nur teilweise</span>
+                {% endif %}
+              {% else %}–{% endif %}
+            </td>
+            <td class="right nowrap">
+              <a class="btn small secondary" href="{{ url_for('admin.round_detail', round_id=row.round.id) }}">Details</a>
+              <a class="btn small ghost" href="{{ url_for('admin.compare_round', round_id=row.round.id) }}">Vergleich</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>Verfahren für diese Phase ändern</h2>
+  <form method="post" action="{{ url_for('admin.phase_allocate', phase_id=phase.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="option-cards">
+      {% for item in methods %}
+        <label class="option {{ 'selected' if item.key == phase.method }}">
+          <input type="radio" name="method" value="{{ item.key }}"
+                 {% if item.key == phase.method %}checked{% endif %}>
+          <span class="title">{{ item.label }}</span>
+          <span class="desc">{{ item.summary }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    <p class="muted mt-sm" style="font-size:.85rem">
+      Das gewählte Verfahren wird gespeichert und – falls die Phase noch offen ist –
+      sofort auf alle Wochen angewendet.
+    </p>
+    <button class="btn secondary" type="submit">Verfahren übernehmen und verteilen</button>
+  </form>
+</div>
+
+{% if phase.status == 'open' %}
+  <div class="card mt">
+    <h2>Phase vorzeitig schließen</h2>
+    <p class="muted" style="font-size:.88rem">
+      Schließt alle Wochen ohne Verteilung – sinnvoll, wenn die Phase abgebrochen
+      wird. Buchungen bleiben erhalten.
+    </p>
+    <form method="post" action="{{ url_for('admin.phase_close', phase_id=phase.id) }}"
+          onsubmit="return confirm('Phase wirklich schließen?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn danger" type="submit">Phase schließen</button>
+    </form>
+  </div>
+{% endif %}
+
+<p class="mt"><a class="btn secondary" href="{{ url_for('admin.rounds') }}">Zurück zu den Vergaberunden</a></p>
+
+{% endblock %}

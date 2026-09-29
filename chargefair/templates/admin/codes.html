@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+{% block title %}Registrierungscodes{% endblock %}
+{% block admin_title %}Registrierungscodes{% endblock %}
+{% block admin_sub %}Zugang zur Registrierung steuern{% endblock %}
+
+{% block admin_content %}
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Neuen Code erzeugen</h2>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create">
+      <div class="field">
+        <label for="label">Bezeichnung</label>
+        <input type="text" name="label" id="label" placeholder="z. B. Neueinstellungen Q4">
+      </div>
+      <div class="field">
+        <label for="max_uses">Maximale Verwendungen</label>
+        <input type="number" name="max_uses" id="max_uses" min="1" max="500" value="1">
+        <div class="help">Der Code wird nach Erreichen der Anzahl automatisch ungültig.</div>
+      </div>
+      <button class="btn" type="submit">Code erzeugen</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Registrierung</h2>
+    <dl class="kv">
+      <dt>Code erforderlich</dt><dd>{{ 'ja' if config.REGISTRATION_REQUIRES_TOKEN else 'nein' }}</dd>
+      <dt>E-Mail-Bestätigung</dt><dd>{{ 'erforderlich' if config.REQUIRE_EMAIL_VERIFICATION else 'nicht erforderlich' }}</dd>
+      <dt>Erlaubte Domains</dt><dd>{{ config.ALLOWED_EMAIL_DOMAINS or 'alle (keine Einschränkung)' }}</dd>
+    </dl>
+    <p class="muted mt-sm" style="font-size:.85rem">
+      Domains und die Frage, ob Codes erforderlich sind, werden über
+      Umgebungsvariablen (<code>ALLOWED_EMAIL_DOMAINS</code>,
+      <code>REGISTRATION_REQUIRES_TOKEN</code>, <code>REQUIRE_EMAIL_VERIFICATION</code>)
+      gesteuert.
+    </p>
+  </div>
+</div>
+
+<div class="card mt">
+  <h2>Alle Codes</h2>
+  {% if tokens %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Code</th><th>Bezeichnung</th><th>Verwendet</th><th>Gültig bis</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for token in tokens %}
+            <tr>
+              <td><code style="font-size:.9rem">{{ token.token }}</code></td>
+              <td>{{ token.label or '–' }}</td>
+              <td class="mono">{{ token.uses }} / {{ token.max_uses }}</td>
+              <td class="nowrap">{{ token.expires_at|de_date if token.expires_at else 'unbegrenzt' }}</td>
+              <td>
+                <span class="badge {{ 'green' if token.is_valid else 'grey' }}">
+                  {{ 'gültig' if token.is_valid else 'ungültig' }}
+                </span>
+              </td>
+              <td class="right">
+                <form method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="toggle">
+                  <input type="hidden" name="token_id" value="{{ token.id }}">
+                  <button class="btn small ghost" type="submit">
+                    {{ 'Deaktivieren' if token.is_active else 'Aktivieren' }}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">Noch keine Codes angelegt.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

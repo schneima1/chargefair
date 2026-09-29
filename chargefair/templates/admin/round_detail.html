@@ -1,0 +1,254 @@
+{% extends "admin/base.html" %}
+{% block title %}Runde KW {{ round_obj.week_start.isocalendar().week }}{% endblock %}
+{% block admin_title %}Vergaberunde {{ week_span(round_obj.week_start) }}{% endblock %}
+{% block admin_sub %}Teilnehmende, Wünsche und Ergebnis dieser Runde{% endblock %}
+
+{% block admin_content %}
+
+<div class="grid cols-4">
+  <div class="stat">
+    <div class="label">Status</div>
+    <div class="value" style="font-size:1.25rem">{{ round_obj.status_label }}</div>
+    <div class="hint">
+      {% if round_obj.closes_at %}Frist {{ round_obj.closes_at|de_datetime }}{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Verfahren</div>
+    <div class="value" style="font-size:1.15rem">{{ method.label }}</div>
+    <div class="hint">{{ method.summary }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Teilnehmende</div>
+    <div class="value">{{ rows|length }}</div>
+    <div class="hint">Personen mit Wünschen</div>
+  </div>
+  <div class="stat">
+    <div class="label">Ergebnis</div>
+    <div class="value">
+      {% if round_obj.stats and round_obj.stats.get('assigned') is not none %}{{ round_obj.stats.get('assigned') }}{% else %}–{% endif %}
+    </div>
+    <div class="hint">
+      {% if round_obj.stats and round_obj.stats.get('supplied') is not none %}
+        an {{ round_obj.stats.get('supplied') }} Personen verteilt
+      {% else %}noch nicht verteilt{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if round_obj.stats and round_obj.stats.get('assigned') is not none %}
+  <div class="card mt {{ 'success' if round_obj.stats.get('guarantee_fulfilled') else 'warn' }}">
+    <h2>Grundversorgung und Zusatzwünsche</h2>
+    <div class="grid cols-4">
+      <div class="stat">
+        <div class="label">Garantie je Person</div>
+        <div class="value">{{ round_obj.stats.get('guarantee', 1) }}<span style="font-size:1rem;color:var(--muted)">×</span></div>
+        <div class="hint">garantierte Ladezeit pro Woche</div>
+      </div>
+      <div class="stat">
+        <div class="label">Grundversorgung erfüllt</div>
+        <div class="value">{{ round_obj.stats.get('guarantee_met', 0) }}/{{ round_obj.stats.get('applicants', 0) }}</div>
+        <div class="hint">Personen mit mindestens einer Ladezeit</div>
+      </div>
+      <div class="stat">
+        <div class="label">Zusatzwünsche erfüllt</div>
+        <div class="value">{{ round_obj.stats.get('extras_granted_to', 0) }}/{{ round_obj.stats.get('extras_requested_by', 0) }}</div>
+        <div class="hint">Personen, die mehr als {{ round_obj.stats.get('guarantee', 1) }}× wollten</div>
+      </div>
+      <div class="stat">
+        <div class="label">Nicht erfüllte Wünsche</div>
+        <div class="value">{{ round_obj.stats.get('wish_shortfall', 0) }}</div>
+        <div class="hint">aufgrund fehlender Kapazität</div>
+      </div>
+    </div>
+    {% if round_obj.stats.get('guarantee_fulfilled') %}
+      <div class="note green mt-sm no-margin">
+        Alle Teilnehmenden haben ihre garantierte Ladezeit erhalten.
+        {% if round_obj.stats.get('extras_granted') %}
+          Zusätzlich wurden {{ round_obj.stats.get('extras_granted') }} Zusatzwünsche erfüllt.
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="note warn mt-sm no-margin">
+        <strong>Die Grundversorgung konnte nicht vollständig erfüllt werden.</strong>
+        Die Nachfrage übersteigt die freie Kapazität. Zusatzwünsche werden in diesem
+        Fall bewusst nicht verteilt – die verfügbaren Plätze gehen vollständig an
+        Personen ohne Ladezeit. Geprüft werden könnte eine Erhöhung der Kapazität
+        oder eine zweite Vergaberunde, sobald Plätze frei werden.
+      </div>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="card mt">
+  <h2>Verfahren für diese Runde</h2>
+  <form method="post" action="{{ url_for('admin.set_round_method', round_id=round_obj.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="option-cards">
+      {% for item in methods %}
+        <label class="option {{ 'selected' if item.key == round_obj.method }}">
+          <input type="radio" name="method" value="{{ item.key }}"
+                 {% if item.key == round_obj.method %}checked{% endif %}>
+          <span class="title">{{ item.label }}</span>
+          <span class="desc">{{ item.summary }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    <div class="checkline mt-sm">
+      <input type="checkbox" name="also_default" id="also_default" value="1">
+      <label for="also_default" style="margin:0">Gleichzeitig als Standardverfahren für neue Runden speichern</label>
+    </div>
+    <div class="btn-row mt-sm">
+      <button class="btn secondary" type="submit">Verfahren übernehmen</button>
+      <a class="btn ghost" href="{{ url_for('admin.compare_round', round_id=round_obj.id) }}">Alle Verfahren vergleichen (Simulation)</a>
+    </div>
+  </form>
+</div>
+
+{% if round_obj.status == 'open' %}
+  <div class="card mt success">
+    <h2>Vergabe starten</h2>
+    <p>
+      Beim Start berechnet das System die Verteilung anhand der gewählten Regeln:
+      Zuerst erhält jede Person ihre garantierte Ladezeit, danach werden
+      Zusatzwünsche verteilt. Bereits vorhandene regelmäßige Ladezeiten werden
+      vorher berücksichtigt. Anschließend erhalten alle Teilnehmenden eine E-Mail.
+      Ein erneuter Lauf ist möglich – vorherige Ergebnisse dieser Runde werden dabei
+      ersetzt.
+    </p>
+    {% if problem %}
+      <dl class="kv">
+        <dt>Teilnehmende mit Wünschen</dt><dd>{{ problem.users|length }}</dd>
+        <dt>Freie Plätze in dieser Woche</dt><dd>{{ problem.total_capacity }}</dd>
+        <dt>Gewünschte Ladezeiten</dt><dd>{{ problem.requested }}</dd>
+      </dl>
+      {% if problem.total_capacity < problem.requested %}
+        <div class="note warn mt-sm">
+          <strong>Nachfrage übersteigt das Angebot</strong>
+          Es stehen {{ problem.total_capacity }} freie Plätze für {{ problem.requested }}
+          Wünsche zur Verfügung. Genau für diesen Fall sorgt die faire Verteilung
+          dafür, dass nicht immer dieselben Personen den Vortritt haben.
+        </div>
+      {% endif %}
+    {% else %}
+      <p class="muted">Es liegen noch keine Wünsche vor.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('admin.run_allocation', round_id=round_obj.id) }}"
+          onsubmit="return confirm('Vergabe jetzt durchführen? Alle Teilnehmenden werden per E-Mail informiert.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="method" value="{{ round_obj.method }}">
+      <button class="btn success" type="submit">Vergabe jetzt durchführen</button>
+    </form>
+  </div>
+{% else %}
+  <div class="card mt">
+    <h2>Status ändern</h2>
+    <form method="post" action="{{ url_for('admin.set_round_status', round_id=round_obj.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="fields-row field-row">
+        <div class="field">
+          <label for="status">Neuer Status</label>
+          <select name="status" id="status">
+            <option value="open">Offen (Wünsche möglich)</option>
+            <option value="closed" {% if round_obj.status == 'closed' %}selected{% endif %}>Geschlossen (keine Änderungen)</option>
+          </select>
+        </div>
+        <div class="field" style="align-self:end">
+          <button class="btn secondary" type="submit">Status setzen</button>
+        </div>
+      </div>
+    </form>
+  </div>
+{% endif %}
+
+{% if round_obj.stats and round_obj.stats.get('solver') %}
+  <div class="card mt">
+    <h2>Rechenlauf</h2>
+    <dl class="kv">
+      <dt>Rechenzeit</dt><dd>{{ round_obj.stats.get('wall_time') }} s</dd>
+      <dt>Status</dt><dd>{{ round_obj.stats.get('solver', {}).get('status', '–') }}</dd>
+      <dt>Auslastung</dt><dd>{{ (round_obj.stats.get('utilisation', 0) * 100)|round(1) }} %</dd>
+      {% if round_obj.stats.get('solver', {}).get('supplied') is not none %}
+        <dt>Versorgte Personen</dt><dd>{{ round_obj.stats.get('solver', {}).get('supplied') }}</dd>
+      {% endif %}
+      {% if round_obj.stats.get('solver', {}).get('utility') is not none %}
+        <dt>Erfüllte Wunschpunkte</dt><dd>{{ round_obj.stats.get('solver', {}).get('utility') }}</dd>
+      {% endif %}
+      {% if round_obj.stats.get('solver', {}).get('rank_cost') is not none %}
+        <dt>Rangkosten (Summe der Quadrate)</dt><dd>{{ round_obj.stats.get('solver', {}).get('rank_cost') }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+{% endif %}
+
+<div class="card mt">
+  <h2>Teilnehmende und Wünsche</h2>
+  {% if rows %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Person</th><th>Gewünscht</th><th>Wünsche (Priorität)</th><th>Bereits zugeteilt</th></tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>
+                <strong>{{ row.user.full_name }}</strong><br>
+                <small class="muted">{{ row.user.department or '–' }}
+                  {% set vehicle = row.user.primary_vehicle %}
+                  {% if vehicle %}· {{ vehicle.type }}{% endif %}
+                </small>
+              </td>
+              <td class="mono">
+                {{ row.participation.desired_count }}×
+                {% if row.participation.desired_count > (round_obj.stats.get('guarantee', 1) if round_obj.stats else 1) %}
+                  <br><span class="badge amber">Zusatzwunsch</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.requests %}
+                  <ol style="margin:0;padding-left:1.15rem">
+                    {% for request in row.requests %}
+                      <li>
+                        {{ request.weekday|weekday }}, {{ window_label_at(request.window_index) }} Uhr
+                        <span class="badge {{ {'granted': 'green', 'rejected': 'red'}.get(request.status, 'grey') }}">{{ request.status_label }}</span>
+                      </li>
+                    {% endfor %}
+                  </ol>
+                {% else %}<span class="muted">keine Wünsche</span>{% endif %}
+              </td>
+              <td class="mono">{{ row.held }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">Noch keine Wünsche eingegangen.</p>
+  {% endif %}
+</div>
+
+{% if result_bookings %}
+  <div class="card mt">
+    <h2>Verteiltes Ergebnis</h2>
+    <div class="table-wrap">
+      <table class="compact">
+        <thead><tr><th>Datum</th><th>Zeit</th><th>Person</th><th>Ladepunkt</th><th>Stellplatz</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for booking in result_bookings %}
+            <tr>
+              <td class="nowrap">{{ booking.weekday|weekday }}, {{ booking.date_label }}</td>
+              <td class="nowrap">{{ booking.window_label }}</td>
+              <td>{{ booking.user.full_name }}</td>
+              <td>{{ booking.charging_point.name }}</td>
+              <td>{{ booking.parking_space.name if booking.parking_space else '–' }}</td>
+              <td><span class="badge {{ {'active': 'green', 'released': 'amber', 'cancelled': 'grey', 'completed': 'blue'}.get(booking.status, 'grey') }}">{{ booking.status_label }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

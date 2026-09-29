@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Vergabeverfahren{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Vergabeverfahren</h1>
+  <div class="sub">Alle Verfahren im Überblick – mit Link zur formalen Beschreibung</div>
+</div>
+
+<div class="note">
+  <strong>Warum mehrere Verfahren?</strong>
+  Je nachdem, ob vor allem die Grundversorgung, die Wunschtreue oder die
+  Einfachheit im Vordergrund steht, passt ein anderes Verfahren. Die Administration
+  wählt das aktive Verfahren aus. Alle Verfahren außer den beiden
+  Vergleichsmaßstäben halten dieselbe Zusage: <strong>Jede Person erhält zuerst
+  ihre garantierte Ladezeit, Zusatzwünsche kommen erst danach.</strong>
+</div>
+
+<div class="stack mt">
+  {% for method in methods %}
+    <div class="item" style="{{ 'border-left:4px solid var(--primary)' if method.key == active_method else '' }}">
+      <div class="head">
+        <div>
+          <div class="title">
+            {{ method.label }}
+            {% if method.key == active_method %}<span class="badge blue">aktiv</span>{% endif %}
+            {% if method.uses_solver %}<span class="badge grey">Optimierung</span>{% endif %}
+          </div>
+          <div class="meta">{{ method.summary }}</div>
+        </div>
+        <div class="btn-row">
+          <a class="btn small secondary" href="{{ url_for('main.method_detail', key=method.key) }}">
+            Mathematische Beschreibung →
+          </a>
+        </div>
+      </div>
+      <p class="mt-sm" style="font-size:.9rem">{{ method.details }}</p>
+      <div class="grid cols-2">
+        <div>
+          <strong style="font-size:.84rem">Vorteile</strong>
+          <ul style="margin:.2rem 0 0 1.1rem;padding:0;font-size:.84rem">
+            {% for item in method.pros %}<li>{{ item }}</li>{% endfor %}
+          </ul>
+        </div>
+        <div>
+          <strong style="font-size:.84rem">Zu beachten</strong>
+          <ul style="margin:.2rem 0 0 1.1rem;padding:0;font-size:.84rem">
+            {% for item in method.cons %}<li>{{ item }}</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

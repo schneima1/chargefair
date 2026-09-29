@@ -1,0 +1,110 @@
+services:
+  web:
+    build: .
+    image: chargefair:1.0
+    container_name: chargefair-web
+    restart: unless-stopped
+    ports:
+      - "${CHARGEFAIR_PORT:-8000}:8000"
+    environment:
+      # --- basics ---
+      APP_NAME: "${APP_NAME:-ChargeFair}"
+      COMPANY_NAME: "${COMPANY_NAME:-ChargeFair Demo GmbH}"
+      SECRET_KEY: "${SECRET_KEY:-bitte-aendern-bitte-aendern-32-zeichen}"
+      BASE_URL: "${BASE_URL:-http://localhost:8000}"
+      TIMEZONE: "${TIMEZONE:-Europe/Berlin}"
+      CHARGEFAIR_DATA: /data
+      # --- registration ---
+      REGISTRATION_REQUIRES_TOKEN: "${REGISTRATION_REQUIRES_TOKEN:-1}"
+      REQUIRE_EMAIL_VERIFICATION: "${REQUIRE_EMAIL_VERIFICATION:-1}"
+      ALLOWED_EMAIL_DOMAINS: "${ALLOWED_EMAIL_DOMAINS:-}"
+      # --- demo data ---
+      SEED_DEMO: "${SEED_DEMO:-1}"
+      SEED_USERS: "${SEED_USERS:-24}"
+      SEED_HISTORY: "${SEED_HISTORY:-1}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@example.com}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-ChargeFair!2026}"
+      DEMO_PASSWORD: "${DEMO_PASSWORD:-Demo!2026}"
+      # --- mail ---
+      MAIL_DRY_RUN: "${MAIL_DRY_RUN:-1}"
+      MAIL_FROM: "${MAIL_FROM:-chargefair@example.com}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_TLS: "${SMTP_TLS:-1}"
+      # --- solver ---
+      ALLOCATION_METHOD: "${ALLOCATION_METHOD:-lexicographic}"
+      GUARANTEED_SLOTS_PER_WEEK: "${GUARANTEED_SLOTS_PER_WEEK:-1}"
+      MAX_SLOTS_PER_WEEK: "${MAX_SLOTS_PER_WEEK:-3}"
+      SOLVER_TIME_LIMIT: "${SOLVER_TIME_LIMIT:-20}"
+      SOLVER_WORKERS: "${SOLVER_WORKERS:-8}"
+      # --- run mode ---
+      MAIL_WORKER_IN_PROCESS: "0"
+      DISPATCH_HOUSEKEEPING: "1"
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-2}"
+      GUNICORN_THREADS: "${GUNICORN_THREADS:-4}"
+    volumes:
+      - chargefair-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build: .
+    image: chargefair:1.0
+    container_name: chargefair-worker
+    restart: unless-stopped
+    command: ["python", "-m", "chargefair.mail_worker"]
+    depends_on:
+      - web
+    environment:
+      APP_NAME: "${APP_NAME:-ChargeFair}"
+      SECRET_KEY: "${SECRET_KEY:-bitte-aendern-bitte-aendern-32-zeichen}"
+      BASE_URL: "${BASE_URL:-http://localhost:8000}"
+      CHARGEFAIR_DATA: /data
+      MAIL_DRY_RUN: "${MAIL_DRY_RUN:-1}"
+      MAIL_FROM: "${MAIL_FROM:-chargefair@example.com}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_TLS: "${SMTP_TLS:-1}"
+      START_MAIL_WORKER: "0"
+      MAIL_WORKER_IN_PROCESS: "0"
+      DISPATCH_MAIL_INLINE: "0"
+      DISPATCH_HOUSEKEEPING: "0"
+      SEED_DEMO: "0"
+    volumes:
+      - chargefair-data:/data
+
+  # Test runner. Uses a profile so it never starts with `docker compose up`.
+  #   docker compose run --rm test
+  test:
+    build: .
+    image: chargefair:1.0
+    profiles: ["test"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        pip install --user --quiet pytest &&
+        python -m pytest /app/tests -q
+    environment:
+      SECRET_KEY: "test-secret"
+      CHARGEFAIR_DATA: /tmp/chargefair-test
+      START_MAIL_WORKER: "0"
+      MAIL_WORKER_IN_PROCESS: "0"
+      DISPATCH_MAIL_INLINE: "0"
+      DISPATCH_HOUSEKEEPING: "0"
+      REQUIRE_EMAIL_VERIFICATION: "0"
+      SEED_DEMO: "0"
+      SEED_HISTORY: "0"
+    volumes:
+      - ./tests:/app/tests:ro
+      - ./chargefair:/app/chargefair:ro
+
+volumes:
+  chargefair-data:

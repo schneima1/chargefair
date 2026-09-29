@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Faire Ladeplatzvergabe{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>{{ points }} Ladepunkte. Viele Elektrofahrzeuge. Eine faire Lösung.</h1>
+  <p>
+    {{ app_name }} organisiert Ladezeiten automatisch, verhindert die dauerhafte
+    Bevorzugung einzelner Personen und macht frei werdende Ladeplätze für
+    Kolleginnen und Kollegen verfügbar.
+  </p>
+  <div class="btn-row mt">
+    <a class="btn" href="{{ url_for('auth.login') }}">Anmelden</a>
+    <a class="btn outline" href="{{ url_for('auth.register') }}">Mitarbeiterkonto erstellen</a>
+  </div>
+  <ul class="feature-list">
+    <li>Faire Vergabe statt „wer zuerst klickt, gewinnt“ – ohne Punktesystem</li>
+    <li>Eine Ladezeit pro Woche garantiert – mehr ist möglich, wenn Platz bleibt</li>
+    <li>Wiederkehrende Ladezeiten – auch nur in geraden oder ungeraden Wochen</li>
+    <li>Urlaub: einzelne Termine freigeben – Interessierte werden automatisch informiert</li>
+    <li>Tausch von Ladezeiten unter Kolleginnen und Kollegen</li>
+    <li>Wartelisten mit automatischer Benachrichtigung</li>
+    <li>Benachrichtigungen und Erinnerungen per E-Mail</li>
+    <li>BEV und PHEV nutzen gemeinsam alle Ladepunkte</li>
+  </ul>
+</section>
+
+<div class="grid cols-3 mt">
+  <div class="stat">
+    <div class="label">Ladepunkte</div>
+    <div class="value">{{ points }}</div>
+    <div class="hint">alle Typ&nbsp;2, für BEV und PHEV gleichermaßen</div>
+  </div>
+  <div class="stat">
+    <div class="label">Ladezeitfenster pro Tag</div>
+    <div class="value">{{ windows|length }}</div>
+    <div class="hint">{{ windows|join(' · ') }} Uhr</div>
+  </div>
+  <div class="stat">
+    <div class="label">Ladegelegenheiten pro Woche</div>
+    <div class="value">{{ capacity }}</div>
+    <div class="hint">bei {{ users }} registrierten Fahrzeugen</div>
+  </div>
+  <div class="stat">
+    <div class="label">Rechnerisch je Person</div>
+    <div class="value">{{ per_week }}</div>
+    <div class="hint">Ladezeiten pro Woche</div>
+  </div>
+</div>
+
+<div class="grid cols-2 mt">
+  <div class="card highlight">
+    <h2>Warum nicht einfach „wer zuerst kommt“?</h2>
+    <p>
+      Würde die Buchung um 08:00 Uhr geöffnet, wären die begehrten Mittagszeiten
+      innerhalb von Sekunden vergeben. Wer im Schichtdienst arbeitet, im Homeoffice
+      ist oder gerade Urlaub hat, hätte dauerhaft das Nachsehen.
+    </p>
+    <p>
+      {{ app_name }} arbeitet deshalb mit <strong>Vergaberunden</strong>: Alle geben
+      bis zu einer Frist ihre Wunschzeiten mit Priorität an. Anschließend verteilt
+      das System die Plätze nach festen Regeln – zuerst die garantierte Ladezeit für
+      alle, danach die Zusatzwünsche.
+    </p>
+    <p class="muted no-margin">
+      Es entsteht kein Zeitdruck: Ein Wunsch um 08:00 Uhr hat denselben Wert wie
+      ein Wunsch am Abend der Frist.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>So funktioniert es in vier Schritten</h2>
+    <ol style="padding-left:1.2rem;margin:0">
+      <li><strong>Wünsche abgeben.</strong> Trage für die kommende Woche bis zu drei
+        Wunschzeiten ein, die wichtigste zuerst.</li>
+      <li><strong>Vergabe abwarten.</strong> Das System prüft die Regeln, deine
+        Wünsche und die freie Kapazität und teilt die Plätze zu.</li>
+      <li><strong>Laden.</strong> Du erhältst eine E-Mail mit Datum, Zeitfenster,
+        Ladepunkt und Stellplatz – plus Erinnerungen vor Beginn und Ende.</li>
+      <li><strong>Flexibel bleiben.</strong> Kannst du nicht laden, gib den Termin
+        frei, tausche ihn oder nutze das Ladeplatz-Board.</li>
+    </ol>
+  </div>
+</div>
+
+{% endblock %}

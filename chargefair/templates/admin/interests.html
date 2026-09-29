@@ -1,0 +1,74 @@
+{% extends "admin/base.html" %}
+{% block title %}Slot-Interesse{% endblock %}
+{% block admin_title %}Interesse an bestimmten Terminen{% endblock %}
+{% block admin_sub %}Wer wartet auf welchen belegten Slot – und wurde schon benachrichtigt?{% endblock %}
+
+{% block admin_content %}
+
+<div class="note">
+  <strong>Wozu das gut ist</strong>
+  Anders als die Warteliste (für generell volle Zeitfenster) merkt sich das
+  Interesse einen <em>konkreten, belegten</em> Termin. Wird er freigegeben, erhalten
+  alle Interessierten automatisch eine E-Mail mit einem Ein-Klick-Link. Wer zuerst
+  klickt, bekommt den Platz – es gibt bewusst keine Reihung.
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <a class="btn small {{ 'secondary' if status != 'active' }}" href="{{ url_for('admin.interests', status='active') }}">
+      Aktive ({{ counts.active }})
+    </a>
+    <a class="btn small {{ 'secondary' if status != 'all' }}" href="{{ url_for('admin.interests', status='all') }}">
+      Alle ({{ counts.all }})
+    </a>
+  </div>
+</div>
+
+{% if grouped %}
+  <div class="card mt">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Woche</th><th>Termin</th><th>Interessierte (in Reihenfolge des Eintrags)</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for (week, weekday, window), entries in grouped.items() %}
+            <tr>
+              <td class="nowrap">{{ week_span(week) }}</td>
+              <td class="nowrap"><strong>{{ weekday|weekday }}</strong><br>
+                <small class="muted">{{ window_label_at(window) }} Uhr</small>
+              </td>
+              <td>
+                <ol style="margin:0;padding-left:1.2rem">
+                  {% for entry in entries %}
+                    <li>
+                      {{ entry.user.full_name }}
+                      <small class="muted">
+                        · {{ entry.created_at|de_datetime('%d.%m. %H:%M') }}
+                        {% if entry.status == 'notified' %}
+                          · benachrichtigt {{ entry.notified_at|de_datetime('%d.%m. %H:%M') }}
+                        {% endif %}
+                      </small>
+                    </li>
+                  {% endfor %}
+                </ol>
+              </td>
+              <td>
+                {% set notified = entries|selectattr('status', 'equalto', 'notified')|list|length %}
+                {% if notified %}
+                  <span class="badge amber">{{ notified }} benachrichtigt</span>
+                {% else %}
+                  <span class="badge grey">wartet</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% else %}
+  <div class="card mt"><p class="empty">Keine Einträge in dieser Ansicht.</p></div>
+{% endif %}
+
+{% endblock %}

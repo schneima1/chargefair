@@ -1,0 +1,9 @@
+# Development and research dependencies.
+#
+#   pip install -r requirements-dev.txt
+#
+# Includes the runtime dependencies of the web application plus everything the
+# pre-study scripts in research/ need.
+-r requirements.txt
+matplotlib>=3.8
+pytest>=8.0

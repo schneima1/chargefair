@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Übersicht{% endblock %}
+{% macro vehicle_badge(booking) -%}
+  {% set vehicle = booking.user.primary_vehicle if booking.user else None %}
+  {% if vehicle %}<span class="badge {{ 'ev' if vehicle.type == 'BEV' else 'phev' }}">{{ vehicle.type }}</span>{% endif %}
+{%- endmacro %}
+{% block content %}
+
+<div class="page-head">
+  <h1>
+    {% set hour = today.strftime('%H')|int %}
+    {% if hour < 11 %}Guten Morgen{% elif hour < 18 %}Guten Tag{% else %}Guten Abend{% endif %},
+    {{ current_user.first_name }}
+  </h1>
+  <div class="sub">{{ today|de_date('%A, %d.%m.%Y') }} · KW {{ this_week.isocalendar().week }}</div>
+</div>
+
+{% if not current_user.email_verified %}
+  <div class="note warn">
+    <strong>E-Mail-Adresse noch nicht bestätigt</strong>
+    Bitte bestätige den Link in der E-Mail, damit du Benachrichtigungen erhältst.
+    <a href="{{ url_for('auth.verify') }}">Zur Bestätigung</a>
+  </div>
+{% endif %}
+
+{% for entry in open_offers %}
+  <div class="note green">
+    <strong>Ein Ladeplatz aus deiner Warteliste ist frei!</strong>
+    {{ entry.offered_booking.date_label }}, {{ entry.offered_booking.window_label }} Uhr,
+    {{ entry.offered_booking.charging_point.name }} –
+    {% if entry.is_offer_expired %}die Frist ist leider abgelaufen.
+    {% else %}du hast Zeit bis {{ entry.offer_expires_at|de_datetime('%d.%m.%Y %H:%M') }} Uhr.
+      <a href="{{ url_for('main.waitlist') }}">Jetzt übernehmen</a>{% endif %}
+  </div>
+{% endfor %}
+
+<div class="grid cols-4">
+  <div class="card success">
+    <h3 class="no-margin">Nächster Ladeplatz</h3>
+    {% if next_booking %}
+      <p style="font-size:1.05rem;margin:.5rem 0 .3rem">
+        <strong>{{ next_booking.date_label }}</strong><br>
+        {{ next_booking.window_label }} Uhr<br>
+        Ladepunkt {{ next_booking.charging_point.name }}
+        {% if next_booking.parking_space %}· Stellplatz {{ next_booking.parking_space.name }}{% endif %}
+      </p>
+      <p class="muted no-margin">
+        {% if next_booking.status == 'released' %}
+          <span class="badge amber">Freigegeben</span> – andere können übernehmen
+        {% else %}
+          <span class="badge green">Bestätigt</span> · {{ next_booking.origin_label }}
+        {% endif %}
+      </p>
+      <div class="btn-row mt-sm">
+        <a class="btn small secondary" href="{{ url_for('main.plan', woche=next_booking.start.date().isoformat()) }}">Im Plan zeigen</a>
+        <form method="post" action="{{ url_for('main.release', booking_id=next_booking.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="{{ url_for('main.dashboard') }}">
+          <button class="btn small warn" type="submit">Freigeben</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="muted mt-sm">Aktuell ist keine Ladezeit gebucht.</p>
+      <a class="btn small" href="{{ url_for('main.plan', woche=next_week.isoformat()) }}">Wunschzeiten eintragen</a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 class="no-margin">Deine Ladezeiten</h3>
+    <p class="mt-sm no-margin">
+      <strong>{{ recent_count }}</strong> Ladezeit(en) in den letzten 4 Wochen.
+      Im Durchschnitt aller Mitarbeitenden sind es {{ average }}.
+    </p>
+    <p class="muted mt-sm no-margin" style="font-size:.85rem">
+      Die Zahl ist eine reine Information – sie beeinflusst die Vergabe nicht.
+      Es gibt keine Punkte und keine Bevorzugung nach Wartezeit: Bei knappen
+      Plätzen entscheidet der Zufall.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3 class="no-margin">Dein Wochenkontingent</h3>
+    <p class="mt-sm no-margin">
+      <strong>{{ rules.guarantee }} Ladezeit pro Woche ist dir garantiert.</strong>
+      Insgesamt sind bis zu <strong>{{ rules.personal_max }} Ladezeiten</strong> pro Woche möglich.
+    </p>
+    <dl class="kv mt-sm">
+      <dt>Diese Woche zugeteilt</dt><dd>{{ granted_this_week }} von {{ rules.personal_max }}</dd>
+      <dt>Noch möglich</dt><dd>{{ limit_left }}</dd>
+      <dt>Noch frei im Plan</dt><dd>{{ free_this_week }} von {{ capacity_this_week }}</dd>
+      {% if participation %}
+        <dt>Gewünscht (nächste Woche)</dt><dd>{{ participation.desired_count }}×</dd>
+      {% endif %}
+    </dl>
+    <p class="muted mt-sm no-margin" style="font-size:.85rem">
+      Zusätzliche Ladezeiten über die Garantie hinaus werden nur verteilt, wenn
+      nach der Grundversorgung aller Personen noch Kapazität frei ist: zuerst die
+      zweite Ladezeit für alle, die eine möchten.
+    </p>
+  </div>
+
+  <div class="card {{ 'highlight' if round_obj and round_obj.status == 'open' }}">
+    <h3 class="no-margin">Nächste Vergaberunde</h3>
+    {% if round_obj %}
+      <p class="mt-sm">
+        <strong>{{ window_slot_label(next_week) }}</strong><br>
+        <span class="badge {{ 'green' if round_obj.status == 'open' else 'grey' }}">{{ round_obj.status_label }}</span>
+        {% if round_obj.closes_at %}· Frist {{ round_obj.closes_at|de_datetime }}{% endif %}
+      </p>
+      {% if round_obj.status == 'open' %}
+        {% if my_requests %}
+          <p class="muted no-margin">
+            Dein Wunsch: <strong>{{ participation.desired_count }}× laden</strong>
+            (garantiert ist {{ rules.guarantee }}×)
+          </p>
+          <ol style="padding-left:1.2rem;margin:.2rem 0 .6rem">
+            {% for item in my_requests %}
+              <li>{{ item.weekday|weekday }}, {{ window_label_at(item.window_index) }} Uhr</li>
+            {% endfor %}
+          </ol>
+          <a class="btn small secondary" href="{{ url_for('main.plan', woche=next_week.isoformat()) }}">Wünsche ändern</a>
+        {% else %}
+          <p class="muted">Du hast für diese Woche noch keine Wünsche abgegeben.</p>
+          <a class="btn small" href="{{ url_for('main.plan', woche=next_week.isoformat()) }}">Jetzt Wünsche eintragen</a>
+        {% endif %}
+      {% elif round_obj.status == 'allocated' %}
+        <p class="muted no-margin">Die Vergabe ist abgeschlossen. Ergebnisse findest du im Wochenplan.</p>
+        <a class="btn small secondary mt-sm" href="{{ url_for('main.plan', woche=next_week.isoformat()) }}">Ergebnis ansehen</a>
+      {% else %}
+        <p class="muted no-margin">Die Wunschabgabe ist derzeit geschlossen.</p>
+      {% endif %}
+    {% else %}
+      <p class="muted mt-sm">
+        Für die kommende Woche ist noch keine Vergaberunde angelegt. Sobald sie
+        geöffnet wird, erhältst du eine E-Mail.
+      </p>
+      <a class="btn small secondary" href="{{ url_for('main.plan', woche=next_week.isoformat()) }}">Wochenplan öffnen</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid cols-2 mt">
+  <div class="card">
+    <h2>Diese Woche auf einen Blick</h2>
+    <div class="legend">
+      <span><i class="dot mine"></i> deine Ladezeit</span>
+      <span><i class="dot free"></i> frei</span>
+      <span><i class="dot released"></i> freigegeben</span>
+      <span><i class="dot full"></i> belegt</span>
+    </div>
+    <div class="table-wrap mt-sm">
+      <table class="calendar">
+        <thead>
+          <tr>
+            <th class="time-col">Zeit</th>
+            {% for day in overview.days %}
+              <th>{{ day|de_date('%a') }}<br><small class="muted">{{ day|de_date('%d.%m.') }}</small></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in overview.rows %}
+            <tr>
+              <td class="time-col"><strong>{{ row.label }}</strong></td>
+              {% for cell in row.cells %}
+                <td>
+                  <div class="slot {{ cell.state }}">
+                    <span class="state">
+                      {% if cell.state == 'mine' %}deine Ladezeit
+                      {% elif cell.state == 'released' %}freigegeben
+                      {% elif cell.state == 'free' %}frei
+                      {% else %}belegt{% endif %}
+                    </span>
+                    <div class="meta">
+                      {{ cell.used }}/{{ cell.capacity }} belegt
+                      {% if cell.waiting %}· {{ cell.waiting }} auf Warteliste{% endif %}
+                    </div>
+                  </div>
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted mt-sm no-margin">
+      Auslastung diese Woche: <strong>{{ overview.totals.used }} von {{ overview.totals.capacity }}</strong>
+      Ladegelegenheiten vergeben.
+      <a href="{{ url_for('main.plan') }}">Zum Wochenplan</a>
+    </p>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>Deine nächsten Ladezeiten</h2>
+      {% if upcoming %}
+        <div class="stack">
+          {% for booking in upcoming %}
+            <div class="item">
+              <div class="head">
+                <div>
+                  <div class="title">{{ booking.date_label }} · {{ booking.window_label }} Uhr</div>
+                  <div class="meta">
+                    Ladepunkt {{ booking.charging_point.name }}
+                    {% if booking.parking_space %}· Stellplatz {{ booking.parking_space.name }}{% endif %}
+                    · {{ booking.origin_label }}
+                  </div>
+                </div>
+                <span class="badge {{ {'active': 'green', 'released': 'amber'}.get(booking.status, 'grey') }}">{{ booking.status_label }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <a class="btn small secondary mt" href="{{ url_for('main.my_bookings') }}">Alle Ladezeiten verwalten</a>
+      {% else %}
+        <p class="empty">Keine anstehenden Ladezeiten.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Kurzfristig frei geworden</h2>
+      {% if released %}
+        <div class="stack">
+          {% for booking in released %}
+            <div class="item">
+              <div class="head">
+                <div>
+                  <div class="title">{{ booking.date_label }} · {{ booking.window_label }} Uhr</div>
+                  <div class="meta">
+                    Ladepunkt {{ booking.charging_point.name }} · abgegeben von {{ booking.user.short_name }}
+                  </div>
+                </div>
+                <form method="post" action="{{ url_for('main.takeover', booking_id=booking.id) }}" class="inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="next" value="{{ url_for('main.dashboard') }}">
+                  <button class="btn small success" type="submit">Übernehmen</button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">Zurzeit ist kein Ladeplatz freigegeben.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

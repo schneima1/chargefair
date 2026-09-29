@@ -1,0 +1,96 @@
+{% extends "admin/base.html" %}
+{% block title %}Feedback{% endblock %}
+{% block admin_title %}Verbesserungsvorschläge{% endblock %}
+{% block admin_sub %}Eingegangenes Feedback prüfen, beantworten und den Status pflegen{% endblock %}
+
+{% block admin_content %}
+
+<div class="grid cols-4">
+  <div class="stat {{ 'highlight' if counts['open'] else '' }}">
+    <div class="label">Offen</div>
+    <div class="value">{{ counts['open'] }}</div>
+    <div class="hint">warten auf Rückmeldung</div>
+  </div>
+  <div class="stat"><div class="label">In Prüfung</div><div class="value">{{ counts['in_progress'] }}</div></div>
+  <div class="stat"><div class="label">Umgesetzt</div><div class="value">{{ counts['done'] }}</div></div>
+  <div class="stat"><div class="label">Abgelehnt</div><div class="value">{{ counts['declined'] }}</div></div>
+</div>
+
+<div class="note mt">
+  <strong>Bitte immer begründen</strong>
+  Bei „umgesetzt“ oder „abgelehnt“ erhalten die Verfassenden automatisch eine E-Mail
+  mit deiner Rückmeldung. Ein kurzer Satz zur Begründung erhöht die Akzeptanz –
+  auch dann, wenn ein Vorschlag nicht umgesetzt wird.
+</div>
+
+{% if suggestions %}
+  <div class="stack mt">
+    {% for post in suggestions %}
+      <div class="card {{ 'highlight' if post.status == 'open' else '' }}">
+        <div class="head" style="display:flex;justify-content:space-between;gap:.6rem;flex-wrap:wrap">
+          <div>
+            <div class="title" style="font-weight:700">
+              {{ post.title }}
+              <span class="badge {{ {'open': 'grey', 'in_progress': 'amber', 'done': 'green', 'declined': 'red'}.get(post.status, 'grey') }}">
+                {{ post.status_label }}
+              </span>
+              {% if post.anonymous %}<span class="badge violet">anonym</span>{% endif %}
+            </div>
+            <div class="meta muted" style="font-size:.84rem">
+              {% if post.anonymous %}
+                anonym eingereicht
+              {% else %}
+                {{ post.user.full_name }} · {{ post.user.email }}
+              {% endif %}
+              · {{ post.created_at|de_datetime }}
+            </div>
+          </div>
+          <form method="post" action="{{ url_for('main.delete_post', post_id=post.id) }}"
+                onsubmit="return confirm('Vorschlag endgültig löschen?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn small ghost" type="submit">Löschen</button>
+          </form>
+        </div>
+
+        <p style="white-space:pre-line;margin:.6rem 0 0">{{ post.content }}</p>
+
+        {% for comment in post.comments %}
+          <div class="comment">
+            <span class="who">{{ comment.user.short_name }}</span>
+            <span class="muted">· {{ comment.created_at|de_datetime('%d.%m.%Y %H:%M') }}</span>
+            <div style="white-space:pre-line">{{ comment.content }}</div>
+          </div>
+        {% endfor %}
+
+        <hr>
+
+        <form method="post" action="{{ url_for('admin.feedback_answer', post_id=post.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="field-row">
+            <div class="field">
+              <label for="status_{{ post.id }}">Status</label>
+              <select name="status" id="status_{{ post.id }}">
+                {% for key, label in status_labels.items() %}
+                  <option value="{{ key }}" {% if post.status == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field" style="grid-column: 1 / -1">
+              <label for="reply_{{ post.id }}">Rückmeldung (wird per E-Mail versendet)</label>
+              <textarea name="reply" id="reply_{{ post.id }}" maxlength="4000"
+                        placeholder="Kurze Begründung oder Zwischenstand …">{{ post.admin_reply or '' }}</textarea>
+            </div>
+          </div>
+          <button class="btn" type="submit">Speichern und benachrichtigen</button>
+          {% if post.replied_at %}
+            <small class="muted">· zuletzt geantwortet {{ post.replied_at|de_datetime }}</small>
+          {% endif %}
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card mt"><p class="empty">Noch keine Vorschläge eingegangen.</p></div>
+{% endif %}
+
+{% endblock %}

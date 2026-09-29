@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Neues Passwort{% endblock %}
+{% block content %}
+<div style="max-width:460px;margin:2rem auto">
+  <div class="card">
+    <h1>Neues Passwort vergeben</h1>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="password">Neues Passwort</label>
+        <input type="password" name="password" id="password" required autocomplete="new-password">
+        <div class="help">Mindestens 10 Zeichen, mit Buchstaben und Ziffer.</div>
+      </div>
+      <div class="field">
+        <label for="password_repeat">Passwort wiederholen</label>
+        <input type="password" name="password_repeat" id="password_repeat" required autocomplete="new-password">
+      </div>
+      <button class="btn" type="submit" style="width:100%">Passwort speichern</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

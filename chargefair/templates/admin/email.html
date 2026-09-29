@@ -1,0 +1,84 @@
+{% extends "admin/base.html" %}
+{% block title %}E-Mail-Queue{% endblock %}
+{% block admin_title %}E-Mail-Queue{% endblock %}
+{% block admin_sub %}Benachrichtigungen werden gepuffert versendet – der Webserver wartet nie auf SMTP{% endblock %}
+
+{% block admin_content %}
+
+<div class="note {{ 'warn' if dry_run else 'green' }}">
+  <strong>{{ 'Testmodus aktiv – es werden keine echten E-Mails versendet' if dry_run else 'Echter Versand aktiv' }}</strong>
+  {% if dry_run %}
+    Nachrichten werden im Verzeichnis <code>data/mail_outbox/</code> als Textdatei
+    abgelegt und können dort geprüft werden. Für den echten Versand
+    <code>MAIL_DRY_RUN=0</code> und die SMTP-Zugangsdaten setzen.
+  {% endif %}
+  SMTP-Server: <strong>{{ smtp_host }}</strong>
+</div>
+
+<div class="grid cols-4">
+  <div class="stat"><div class="label">Ausstehend</div><div class="value">{{ counts.pending }}</div></div>
+  <div class="stat"><div class="label">Versendet</div><div class="value">{{ counts.sent }}</div></div>
+  <div class="stat"><div class="label">Fehlgeschlagen</div><div class="value">{{ counts.failed }}</div></div>
+  <div class="stat" style="align-self:center">
+    <form method="post" action="{{ url_for('admin.email_dispatch') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn" type="submit">Jetzt senden</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mt">
+  <div class="toolbar">
+    <a class="btn small {{ 'secondary' if status != 'pending' }}" href="{{ url_for('admin.email_queue', status='pending') }}">Ausstehend</a>
+    <a class="btn small {{ 'secondary' if status != 'sent' }}" href="{{ url_for('admin.email_queue', status='sent') }}">Versendet</a>
+    <a class="btn small {{ 'secondary' if status != 'failed' }}" href="{{ url_for('admin.email_queue', status='failed') }}">Fehlgeschlagen</a>
+    <a class="btn small ghost" href="{{ url_for('admin.email_queue') }}">Alle</a>
+  </div>
+  {% if entries %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Empfänger</th><th>Betreff</th><th>Art</th><th>Status</th><th>Versuche</th><th>Fehler</th><th></th></tr></thead>
+        <tbody>
+          {% for message in entries %}
+            <tr>
+              <td class="mono">{{ message.id }}</td>
+              <td>{{ message.recipient }}</td>
+              <td>{{ message.subject }}</td>
+              <td><span class="badge grey">{{ message.kind or '–' }}</span></td>
+              <td>
+                <span class="badge {{ {'pending': 'amber', 'sent': 'green', 'failed': 'red'}.get(message.status, 'grey') }}">
+                  {{ {'pending': 'ausstehend', 'sent': 'versendet', 'failed': 'fehlgeschlagen'}.get(message.status, message.status) }}
+                </span>
+                {% if message.sent_at %}<br><small class="muted">{{ message.sent_at|de_datetime }}</small>{% endif %}
+              </td>
+              <td class="mono">{{ message.attempts }}</td>
+              <td><small class="muted">{{ message.last_error or '' }}</small></td>
+              <td class="right">
+                {% if message.status != 'sent' %}
+                  <form method="post" action="{{ url_for('admin.email_retry', message_id=message.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn small ghost" type="submit">Erneut</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">Keine Nachrichten in dieser Ansicht.</p>
+  {% endif %}
+</div>
+
+<div class="card mt">
+  <h2>Hinweis zum Betrieb</h2>
+  <p class="muted" style="font-size:.88rem">
+    Die Queue wird im Container von einem eigenen Worker-Prozess abgearbeitet
+    (<code>python -m chargefair.mail_worker</code>). Zusätzlich läuft im Webserver ein
+    leichter Dispatcher, damit im Entwicklungsbetrieb Nachrichten sofort ankommen.
+    In beiden Fällen gilt: Der Webserver wartet nie auf den Mailserver.
+  </p>
+</div>
+
+{% endblock %}

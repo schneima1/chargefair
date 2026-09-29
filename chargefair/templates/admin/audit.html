@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% block title %}Audit-Log{% endblock %}
+{% block admin_title %}Audit-Log{% endblock %}
+{% block admin_sub %}Nachvollziehbare Aufzeichnung aller administrativen und sicherheitsrelevanten Aktionen{% endblock %}
+
+{% block admin_content %}
+
+<div class="note">
+  <strong>Zweck</strong>
+  Das Audit-Log dokumentiert, wer wann welche Aktion ausgelöst hat – wichtig für
+  Nachvollziehbarkeit bei Vergabeentscheidungen und für die Rechenschaftspflicht
+  nach DSGVO. Es enthält keine Passwörter und keine personenbezogenen Daten
+  Dritter, nur die handelnde Kennung.
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Zeitpunkt</th><th>Aktion</th><th>Details</th><th>Ausgeführt von</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for entry in entries %}
+          <tr>
+            <td class="nowrap">{{ entry.created_at|de_datetime }}</td>
+            <td><code style="font-size:.8rem">{{ entry.action }}</code></td>
+            <td>{{ entry.detail or '' }}</td>
+            <td>{{ entry.actor_label or 'System' }}</td>
+            <td class="mono"><small>{{ entry.ip or '–' }}</small></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

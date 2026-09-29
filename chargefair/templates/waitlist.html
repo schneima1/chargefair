@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Warteliste{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Warteliste</h1>
+  <div class="sub">Automatisch benachrichtigt werden, sobald ein Platz frei wird</div>
+  <div class="toolbar">
+    <a class="btn secondary small" href="{{ url_for('main.waitlist', woche=prev_week.isoformat()) }}">← Vorherige Woche</a>
+    <a class="btn secondary small" href="{{ url_for('main.waitlist', woche=next_week.isoformat()) }}">Nächste Woche →</a>
+    <span class="muted">{{ week_label }}</span>
+  </div>
+</div>
+
+<div class="note">
+  <strong>So funktioniert die Warteliste</strong>
+  Ist ein Zeitfenster voll belegt, trägst du dich in die Warteliste ein. Wird ein
+  Platz frei, bekommt die erste Person eine E-Mail und hat begrenzte Zeit
+  (Standard: 30 Minuten), den Platz zu übernehmen. Reagiert sie nicht, geht das
+  Angebot automatisch an die nächste Person. Du musst also nicht ständig
+  nachschauen.
+</div>
+
+{% if entries %}
+  <div class="card">
+    <h2>Deine Einträge</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Termin</th><th>Position</th><th>Status</th><th>Aktion</th></tr></thead>
+        <tbody>
+          {% for entry in entries %}
+            <tr>
+              <td>
+                <strong>{{ entry.weekday|weekday }}, {{ window_label_at(entry.window_index) }} Uhr</strong><br>
+                <small class="muted">{{ week_span(entry.week_start) }}</small>
+              </td>
+              <td class="mono">{{ entry.position }}</td>
+              <td>
+                {% if entry.status == 'offered' and not entry.is_offer_expired %}
+                  <span class="badge green">Platz frei geworden!</span>
+                  <div class="muted" style="font-size:.82rem">
+                    Frist bis {{ entry.offer_expires_at|de_datetime('%d.%m.%Y %H:%M') }} Uhr
+                  </div>
+                {% elif entry.status == 'offered' %}
+                  <span class="badge amber">Frist abgelaufen</span>
+                {% else %}
+                  <span class="badge grey">{{ entry.status_label }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="btn-row">
+                  {% if entry.status == 'offered' and not entry.is_offer_expired %}
+                    <form method="post" action="{{ url_for('main.accept_offer', entry_id=entry.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn small success" type="submit">Platz übernehmen</button>
+                    </form>
+                  {% endif %}
+                  <form method="post" action="{{ url_for('main.withdraw_waitlist', entry_id=entry.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn small ghost" type="submit">Abmelden</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card mt">
+  <h2>Voll belegte Zeitfenster in {{ week_label }}</h2>
+  {% if slot_rows %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Zeitfenster</th><th>Warteliste</th><th></th></tr></thead>
+        <tbody>
+          {% for row in slot_rows %}
+            <tr>
+              <td class="nowrap"><strong>{{ row.label }}</strong></td>
+              <td>
+                {% if row.queue %}
+                  <ol style="margin:0;padding-left:1.2rem">
+                    {% for entry in row.queue %}
+                      <li>
+                        {{ entry.user.short_name }}
+                        {% if entry.status == 'offered' %}<span class="badge amber">Angebot läuft</span>{% endif %}
+                      </li>
+                    {% endfor %}
+                  </ol>
+                {% else %}
+                  <span class="muted">niemand wartet</span>
+                {% endif %}
+              </td>
+              <td class="right">
+                {% if row.joined %}
+                  <span class="badge blue">Du stehst auf der Liste</span>
+                {% else %}
+                  <form method="post" action="{{ url_for('main.waitlist') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="week" value="{{ week.isoformat() }}">
+                    <input type="hidden" name="weekday" value="{{ row.weekday }}">
+                    <input type="hidden" name="window" value="{{ row.window }}">
+                    <button class="btn small" type="submit">Eintragen</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">In dieser Woche sind noch Plätze frei – eine Warteliste ist nicht nötig.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

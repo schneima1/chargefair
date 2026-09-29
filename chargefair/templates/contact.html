@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Nachricht an {{ recipient.short_name }}{% endblock %}
+{% block content %}
+
+<div style="max-width:640px;margin:1rem auto">
+  <div class="page-head">
+    <h1>Nachricht an {{ recipient.full_name }}</h1>
+    <div class="sub">
+      {{ recipient.department or 'ohne Abteilung' }}
+      {% set vehicle = recipient.primary_vehicle %}
+      {% if vehicle %} · {{ vehicle.display }} ({{ vehicle.type }}){% endif %}
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Kontakt über das System</strong>
+    Die E-Mail-Adresse von {{ recipient.first_name }} wird dir nicht angezeigt und
+    deine wird nicht mitgesendet. {{ recipient.first_name }} erhält deine Nachricht
+    per E-Mail und entscheidet selbst, ob und wie geantwortet wird.
+  </div>
+
+  {% if booking %}
+    <div class="card tight mt-sm">
+      <strong>Bezug:</strong> {{ booking.weekday|weekday }}, {{ booking.date_label }},
+      {{ booking.window_label }} Uhr, Ladepunkt {{ booking.charging_point.name }}
+    </div>
+  {% endif %}
+
+  <div class="card mt">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if booking %}<input type="hidden" name="booking" value="{{ booking.id }}">{% endif %}
+
+      <div class="field">
+        <label for="subject">Betreff</label>
+        <input type="text" name="subject" id="subject" maxlength="120" required
+               value="{{ subject }}" placeholder="z. B. Frage zu deiner Ladezeit am Dienstag">
+      </div>
+
+      <div class="field">
+        <label for="message">Nachricht</label>
+        <textarea name="message" id="message" maxlength="2000" required
+                  placeholder="Kurze, sachliche Nachricht …">{{ message }}</textarea>
+        <div class="help">Maximal 2000 Zeichen. Bitte keine personenbezogenen Daten Dritter.</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" type="submit">Nachricht senden</button>
+        <a class="btn ghost" href="{{ url_for('main.overview') }}">Abbrechen</a>
+      </div>
+    </form>
+  </div>
+
+  <p class="muted mt-sm" style="font-size:.84rem">
+    Die Nachricht wird über die E-Mail-Queue versendet und im Audit-Log vermerkt
+    (wer wann wem geschrieben hat). Der Inhalt wird nicht gespeichert.
+  </p>
+</div>
+
+{% endblock %}

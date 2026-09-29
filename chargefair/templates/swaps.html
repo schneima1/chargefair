@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Tausch{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Ladezeiten tauschen</h1>
+  <div class="sub">Wenn der zugeteilte Termin nicht passt – direkt mit Kolleginnen und Kollegen tauschen</div>
+</div>
+
+<div class="note">
+  <strong>So funktioniert der Tausch</strong>
+  Du bietest eine deiner Ladezeiten an und wünschst dir dafür einen anderen Termin
+  in derselben Woche. Passende Personen erhalten eine E-Mail und können den Tausch
+  annehmen. Erst beim Annehmen werden beide Termine umgebucht – bis dahin bleibt
+  dein Platz für dich reserviert und ist nur als „Tauschangebot“ markiert.
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Tauschangebot erstellen</h2>
+    {% if own %}
+      <form method="post" action="{{ url_for('main.swaps') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="booking_id">Meine Ladezeit, die ich abgebe</label>
+          <select name="booking_id" id="booking_id" required>
+            {% for booking in own %}
+              <option value="{{ booking.id }}">
+                {{ booking.date_label }} – {{ booking.window_label }} Uhr – Ladepunkt {{ booking.charging_point.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="wanted_weekday">Wunschtag</label>
+            <select name="wanted_weekday" id="wanted_weekday">
+              <option value="">beliebig</option>
+              {% for day in days %}
+                <option value="{{ day.index }}">{{ day.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="wanted_window">Wunschzeit</label>
+            <select name="wanted_window" id="wanted_window">
+              <option value="">beliebig</option>
+              {% for window in windows %}
+                <option value="{{ window.index }}">{{ window.label }} Uhr</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="message">Nachricht (optional)</label>
+          <input type="text" name="message" id="message" maxlength="400"
+                 placeholder="z. B. Kundentermin am Vormittag">
+        </div>
+        <button class="btn" type="submit">Tauschangebot veröffentlichen</button>
+      </form>
+    {% else %}
+      <p class="empty">Du hast derzeit keine buchbare Ladezeit, die du anbieten könntest.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Offene Tauschangebote</h2>
+    {% if matches %}
+      <div class="stack">
+        {% for match in matches %}
+          <div class="item">
+            <div class="head">
+              <div>
+                <div class="title">
+                  {{ match.offer.booking.date_label }} · {{ match.offer.booking.window_label }} Uhr
+                </div>
+                <div class="meta">
+                  Ladepunkt {{ match.offer.booking.charging_point.name }}
+                  · angeboten von {{ match.offer.user.short_name }}
+                </div>
+                <div class="meta">
+                  Wunsch:
+                  {% if match.offer.wanted_weekday is not none %}
+                    {{ match.offer.wanted_weekday|weekday }},
+                  {% endif %}
+                  {% if match.offer.wanted_window_index is not none %}
+                    {{ window_label_at(match.offer.wanted_window_index) }} Uhr
+                  {% else %}
+                    beliebiger Termin
+                  {% endif %}
+                </div>
+                {% if match.offer.message %}
+                  <div class="meta">„{{ match.offer.message }}“</div>
+                {% endif %}
+              </div>
+              {% if match.candidates %}
+                <span class="badge green">passt zu dir</span>
+              {% else %}
+                <span class="badge grey">kein passender Termin</span>
+              {% endif %}
+            </div>
+            {% if match.candidates %}
+              <form method="post" action="{{ url_for('main.accept_swap', offer_id=match.offer.id) }}" class="mt-sm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="field">
+                  <label>Diesen meiner Termine dafür abgeben</label>
+                  <select name="booking_id" required>
+                    {% for booking in match.candidates %}
+                      <option value="{{ booking.id }}">
+                        {{ booking.date_label }} – {{ booking.window_label }} Uhr – Ladepunkt {{ booking.charging_point.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <button class="btn small success" type="submit">Tausch annehmen</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="empty">Zurzeit liegen keine Tauschangebote vor.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if my_offers %}
+  <div class="card mt">
+    <h2>Meine Tauschangebote</h2>
+    <div class="table-wrap">
+      <table class="compact">
+        <thead><tr><th>Termin</th><th>Wunsch</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for offer in my_offers %}
+            <tr>
+              <td>{{ offer.booking.date_label }} · {{ offer.booking.window_label }} Uhr</td>
+              <td>
+                {{ offer.wanted_weekday|weekday if offer.wanted_weekday is not none else 'beliebig' }}
+                {% if offer.wanted_window_index is not none %}, {{ window_label_at(offer.wanted_window_index) }} Uhr{% endif %}
+              </td>
+              <td>
+                <span class="badge {{ {'open': 'green', 'accepted': 'blue', 'cancelled': 'grey'}.get(offer.status, 'grey') }}">
+                  {{ {'open': 'offen', 'accepted': 'angenommen', 'cancelled': 'zurückgezogen'}.get(offer.status, offer.status) }}
+                </span>
+              </td>
+              <td class="right">
+                {% if offer.status == 'open' %}
+                  <form method="post" action="{{ url_for('main.withdraw_swap', offer_id=offer.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn small ghost" type="submit">Zurückziehen</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

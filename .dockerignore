@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.git/
+.gitignore
+.venv/
+venv/
+env/
+out/
+data/
+test-data/
+*.db
+*.sqlite3
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
+*.log
+*.png
+.env
+.env.*
+!.env.example
+docs/
+# Pre-study scripts are not part of the web application.
+research/
+tests/

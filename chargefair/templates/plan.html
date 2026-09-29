@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Wochenplan{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Wochenplan</h1>
+  <div class="sub">{{ week_span(week) }} · {{ direct_allowed and 'Direktbuchung möglich' or 'Wunschabgabe' }}</div>
+  <div class="toolbar">
+    <a class="btn secondary small" href="{{ url_for('main.plan', woche=prev_week.isoformat()) }}">← Vorherige Woche</a>
+    <a class="btn secondary small" href="{{ url_for('main.plan', woche=next_week.isoformat()) }}">Nächste Woche →</a>
+    {% if not is_current_week %}
+      <a class="btn ghost small" href="{{ url_for('main.plan') }}">Aktuelle Woche</a>
+    {% endif %}
+    <a class="btn ghost small" href="{{ url_for('main.occupancy_view', woche=week.isoformat()) }}">Belegungsliste</a>
+  </div>
+</div>
+
+{# ---------- Status der Vergaberunde ---------- #}
+{% if round_obj and round_obj.status == 'open' %}
+  <div class="note">
+    <strong>Diese Woche läuft eine Vergaberunde.</strong>
+    Trage unten deine Wunschzeiten ein – die wichtigste zuerst. Die Vergabe erfolgt
+    <em>nicht</em> in der Reihenfolge des Eingangs: Zuerst wird die Grundversorgung
+    aller Personen sichergestellt, danach entscheidet bei knappen Plätzen der
+    Zufall. Wünsche kannst du bis zur Frist beliebig oft ändern.
+    {% if round_obj.closes_at %}Frist: <strong>{{ round_obj.closes_at|de_datetime }}</strong>.{% endif %}
+  </div>
+{% elif wish_open %}
+  <div class="note">
+    <strong>Wunschabgabe ist offen.</strong>
+    Für diese Woche gibt es noch keine laufende Vergaberunde – deine Wünsche
+    werden gespeichert und beim Start der Vergabe berücksichtigt. Die Vergabe
+    erfolgt nicht nach der Reihenfolge des Eingangs.
+  </div>
+{% elif round_obj and round_obj.status == 'allocated' %}
+  <div class="note green">
+    <strong>Die Vergabe für diese Woche ist abgeschlossen.</strong>
+    Freie Plätze können weiterhin direkt gebucht werden – siehe grüne Zeitfenster unten.
+  </div>
+{% else %}
+  <div class="note green">
+    <strong>Keine laufende Vergaberunde für diese Woche.</strong>
+    Freie Zeitfenster kannst du direkt buchen. Das ist vor allem für kurzfristige
+    Änderungen gedacht.
+  </div>
+{% endif %}
+
+{# ---------- Anspruch und Kontingent ---------- #}
+<div class="grid cols-4">
+  <div class="stat">
+    <div class="label">Garantiert pro Woche</div>
+    <div class="value">{{ rules.guarantee }}<span style="font-size:1rem;color:var(--muted)">×</span></div>
+    <div class="hint">Grundanspruch, unabhängig von der Nachfrage</div>
+  </div>
+  <div class="stat">
+    <div class="label">Maximal pro Woche</div>
+    <div class="value">{{ rules.personal_max }}<span style="font-size:1rem;color:var(--muted)">×</span></div>
+    <div class="hint">inkl. Zusatzwünschen bei freier Kapazität</div>
+  </div>
+  <div class="stat">
+    <div class="label">Diese Woche bereits zugeteilt</div>
+    <div class="value">{{ granted_this_week }}<span style="font-size:1rem;color:var(--muted)">×</span></div>
+    <div class="hint">noch {{ limit_left }} von {{ limit_total }} möglich</div>
+  </div>
+  <div class="stat">
+    <div class="label">Noch frei in dieser Woche</div>
+    <div class="value">{{ free_slots }}</div>
+    <div class="hint">von {{ capacity_total }} Ladegelegenheiten</div>
+  </div>
+</div>
+
+{% if rules.guarantee < rules.personal_max %}
+  <div class="note green">
+    <strong>Wie oft kannst du laden?</strong>
+    Gib bei deinen Wünschen an, wie oft du laden möchtest – zum Beispiel 3×.
+    <strong>{{ rules.guarantee }} Ladezeit ist dir garantiert.</strong>
+    Weitere Ladezeiten werden nur verteilt, wenn nach der Grundversorgung
+    <em>aller</em> Personen noch Kapazität frei ist: Zuerst bekommt jede Person
+    ihre zweite Ladezeit, bevor irgendjemand eine dritte erhält. Eine zweite
+    Ladezeit erhält also niemand, solange jemand anders noch keine hat.
+  </div>
+{% endif %}
+
+{% if not direct_allowed and direct_reason %}
+  <div class="note warn">
+    <strong>Direktbuchung derzeit nicht möglich</strong>
+    {{ direct_reason }}
+  </div>
+{% endif %}
+
+{# ---------- Kalender ---------- #}
+<div class="card">
+  <h2>Belegung der Woche</h2>
+  <div class="legend">
+    <span><i class="dot mine"></i> deine Ladezeit</span>
+    <span><i class="dot free"></i> frei ({{ overview.capacity }} Ladepunkte)</span>
+    <span><i class="dot released"></i> freigegeben</span>
+    <span><i class="dot full"></i> voll belegt</span>
+  </div>
+  <div class="table-wrap mt-sm">
+    <table class="calendar">
+      <thead>
+        <tr>
+          <th class="time-col">Zeitfenster</th>
+          {% for day in days %}
+            <th>{{ day.name }}<br><small class="muted">{{ day.cells[0].date|de_date('%d.%m.') }}</small></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in overview.rows %}
+          <tr>
+            <td class="time-col"><strong>{{ row.label }}</strong><br><small class="muted">Uhr</small></td>
+            {% for cell in row.cells %}
+              <td>
+                <div class="slot {{ cell.state }}">
+                  <span class="state">
+                    {% if cell.state == 'mine' %}deine Ladezeit
+                    {% elif cell.state == 'released' %}{{ cell.released|length }} freigegeben
+                    {% elif cell.state == 'free' %}frei
+                    {% else %}voll{% endif %}
+                  </span>
+                  <div class="meta">
+                    {{ cell.used }}/{{ cell.capacity }} belegt
+                    {% if cell.waiting %}· {{ cell.waiting }} wartend{% endif %}
+                  </div>
+                  <div class="actions">
+                    {% if cell.mine %}
+                      <form method="post" action="{{ url_for('main.release', booking_id=cell.mine[0].id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="next" value="{{ url_for('main.plan', woche=week.isoformat()) }}">
+                        <button class="btn small warn" type="submit">Freigeben</button>
+                      </form>
+                    {% endif %}
+                    {% if cell.released %}
+                      {% set free_booking = cell.released[0] %}
+                      {% if free_booking.user_id != current_user.id %}
+                        <form method="post" action="{{ url_for('main.takeover', booking_id=free_booking.id) }}">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="next" value="{{ url_for('main.plan', woche=week.isoformat()) }}">
+                          <button class="btn small success" type="submit">Übernehmen</button>
+                        </form>
+                      {% endif %}
+                    {% endif %}
+                    {% if cell.state == 'free' and direct_allowed %}
+                      <form method="post" action="{{ url_for('main.direct_booking') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="week" value="{{ week.isoformat() }}">
+                        <input type="hidden" name="weekday" value="{{ cell.day }}">
+                        <input type="hidden" name="window" value="{{ cell.window }}">
+                        <button class="btn small" type="submit">Buchen</button>
+                      </form>
+                    {% endif %}
+                    {% if cell.state == 'full' %}
+                      <form method="post" action="{{ url_for('main.waitlist') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="week" value="{{ week.isoformat() }}">
+                        <input type="hidden" name="weekday" value="{{ cell.day }}">
+                        <input type="hidden" name="window" value="{{ cell.window }}">
+                        <button class="btn small secondary" type="submit">Warteliste</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---------- Wunschabgabe ---------- #}
+{% if wish_open %}
+  <div class="card mt">
+    <h2>Wunschzeiten für {{ week_span(week) }}</h2>
+    <p class="muted">
+      Wähle bis zu fünf Zeitfenster aus und vergib eine Priorität: 1 = wichtigster
+      Wunsch. Je höher die Priorität, desto eher berücksichtigt das System sie –
+      eine Garantie gibt es aber nicht, weil zuerst die faire Grundversorgung
+      aller Personen sichergestellt wird.
+    </p>
+
+    <form method="post" action="{{ url_for('main.submit_wish') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="week" value="{{ week.isoformat() }}">
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:52px">Wunsch</th>
+              <th>Zeitfenster</th>
+              <th style="width:150px">Priorität</th>
+              <th style="width:110px">frei</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for day in days %}
+              {% for cell in day.cells %}
+                <tr>
+                  <td>
+                    <input type="checkbox" name="slot" value="{{ cell.weekday }}:{{ cell.window }}"
+                           id="slot_{{ cell.weekday }}_{{ cell.window }}"
+                           {% if cell.requested %}checked{% endif %}
+                           data-rank="rank_{{ cell.weekday }}_{{ cell.window }}">
+                  </td>
+                  <td>
+                    <label for="slot_{{ cell.weekday }}_{{ cell.window }}" style="font-weight:500;margin:0">
+                      {{ day.name }}, {{ windows[cell.window] }} Uhr
+                    </label>
+                  </td>
+                  <td>
+                    <select name="rank_{{ cell.weekday }}_{{ cell.window }}" id="rank_{{ cell.weekday }}_{{ cell.window }}">
+                      {% for priority in range(1, 6) %}
+                        <option value="{{ priority }}"
+                          {% if priority_map.get((cell.weekday, cell.window)) == priority %}selected{% endif %}>
+                          Priorität {{ priority }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td class="mono">{{ cell.free }}/{{ cell.capacity }}</td>
+                </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="field-row mt">
+        <div class="field">
+          <label for="desired_count">Wie oft möchtest du in dieser Woche laden?</label>
+          <select name="desired_count" id="desired_count">
+            {% for count in range(1, rules.maximum + 1) %}
+              <option value="{{ count }}"
+                {% if participation and participation.desired_count == count %}selected{% elif not participation and count == rules.guarantee %}selected{% endif %}>
+                {{ count }}×{% if count > rules.guarantee %} (Zusatzwunsch){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="help">
+            Deine Woche hat {{ rules.personal_max }} Plätze Platz. Davon sind
+            {{ rules.guarantee }} Ladezeit garantiert, weitere wirst du nur
+            berücksichtigt, wenn nach der Grundversorgung aller Personen noch
+            Kapazität frei ist.
+          </div>
+        </div>
+        <div class="field">
+          <label for="note">Hinweis an die Administration (optional)</label>
+          <input type="text" name="note" id="note" maxlength="255"
+                 value="{{ participation.note if participation else '' }}"
+                 placeholder="z. B. Dienstreise, Ladebedarf auf der Rückfahrt">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" type="submit">Wünsche speichern</button>
+        {% if my_requests %}
+          <button class="btn ghost" type="submit" formaction="{{ url_for('main.delete_wishes') }}"
+                  formnovalidate>Alle Wünsche zurückziehen</button>
+        {% endif %}
+      </div>
+    </form>
+    {% if my_requests %}
+      <hr>
+      <h3>Aktuell hinterlegte Wünsche</h3>
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Priorität</th><th>Zeitfenster</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for item in my_requests %}
+              <tr>
+                <td class="mono">{{ item.priority }}</td>
+                <td>{{ item.weekday|weekday }}, {{ windows[item.window_index] }} Uhr</td>
+                <td><span class="badge {{ {'granted': 'green', 'rejected': 'red'}.get(item.status, 'grey') }}">{{ item.status_label }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if overview.my_bookings %}
+  <div class="card mt">
+    <h2>Deine Ladezeiten in dieser Woche</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Datum</th><th>Zeit</th><th>Ladepunkt</th><th>Stellplatz</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for booking in overview.my_bookings %}
+            <tr>
+              <td>{{ booking.weekday|weekday }}, {{ booking.date_label }}</td>
+              <td>{{ booking.window_label }} Uhr</td>
+              <td>{{ booking.charging_point.name }}</td>
+              <td>{{ booking.parking_space.name if booking.parking_space else '–' }}</td>
+              <td><span class="badge {{ {'active': 'green', 'released': 'amber'}.get(booking.status, 'grey') }}">{{ booking.status_label }}</span></td>
+              <td class="right nowrap">
+                {% if booking.status == 'active' %}
+                  <form method="post" action="{{ url_for('main.release', booking_id=booking.id) }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ url_for('main.plan', woche=week.isoformat()) }}">
+                    <button class="btn small warn" type="submit">Freigeben</button>
+                  </form>
+                  <form method="post" action="{{ url_for('main.cancel', booking_id=booking.id) }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ url_for('main.plan', woche=week.isoformat()) }}">
+                    <button class="btn small ghost" type="submit">Stornieren</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<script>
+  // Rank selects only make sense for selected wishes; keep them in sync visually.
+  document.querySelectorAll('input[name="slot"]').forEach(function (box) {
+    var select = document.getElementById(box.dataset.rank);
+    var sync = function () {
+      if (select) { select.disabled = !box.checked; select.style.opacity = box.checked ? '1' : '.5'; }
+    };
+    box.addEventListener('change', sync);
+    sync();
+  });
+</script>
+
+{% endblock %}

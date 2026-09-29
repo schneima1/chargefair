@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Feedback{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Feedback &amp; Verbesserungsvorschläge</h1>
+  <div class="sub">Was können wir besser machen? Was fehlt? Was läuft schief?</div>
+</div>
+
+<div class="grid cols-4">
+  <div class="stat">
+    <div class="label">Offen</div>
+    <div class="value">{{ counts['open'] }}</div>
+    <div class="hint">noch nicht bearbeitet</div>
+  </div>
+  <div class="stat">
+    <div class="label">In Prüfung</div>
+    <div class="value">{{ counts['in_progress'] }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Umgesetzt</div>
+    <div class="value">{{ counts['done'] }}</div>
+    <div class="hint">bereits verbessert</div>
+  </div>
+  <div class="stat">
+    <div class="label">Abgelehnt</div>
+    <div class="value">{{ counts['declined'] }}</div>
+    <div class="hint">mit Begründung</div>
+  </div>
+</div>
+
+<div class="grid cols-2 mt">
+  <div class="card highlight">
+    <h2>Vorschlag einreichen</h2>
+    <p class="muted" style="font-size:.88rem">
+      Beschreibe möglichst konkret, was dich stört oder was du dir wünschst. Je
+      nachvollziehbarer das Problem, desto leichter lässt es sich umsetzen. Die
+      Administration antwortet hier öffentlich, damit alle den Stand sehen.
+    </p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="title">Kurzer Titel</label>
+        <input type="text" name="title" id="title" maxlength="160" required
+               placeholder="z. B. Erinnerung 15 Minuten früher senden">
+      </div>
+      <div class="field">
+        <label for="content">Beschreibung</label>
+        <textarea name="content" id="content" maxlength="4000" required
+                  placeholder="Was ist das Problem? Welche Lösung stellst du dir vor? Wen betrifft es?"></textarea>
+      </div>
+      <div class="field">
+        <label class="checkline">
+          <input type="checkbox" name="anonymous" value="1">
+          Vorschlag anonym einreichen (Name wird nicht angezeigt)
+        </label>
+        <div class="help">
+          Auch bei anonymen Vorschlägen kann die Administration antworten; du
+          erhältst dann eine E-Mail, andere sehen deinen Namen nicht.
+        </div>
+      </div>
+      <button class="btn" type="submit">Vorschlag absenden</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Wie es weitergeht</h2>
+    <ol style="padding-left:1.2rem;margin:0;font-size:.92rem">
+      <li class="mt-sm">Der Vorschlag landet hier im Board und die Administration
+        erhält eine Benachrichtigung.</li>
+      <li class="mt-sm">Der Status wechselt auf <strong>in Prüfung</strong>, sobald
+        sich jemand darum kümmert.</li>
+      <li class="mt-sm">Am Ende steht <strong>umgesetzt</strong> oder
+        <strong>abgelehnt</strong> – in beiden Fällen mit Begründung.</li>
+      <li class="mt-sm">Du bekommst bei jeder Statusänderung eine E-Mail.</li>
+    </ol>
+    <div class="note mt-sm">
+      <strong>Für kurzfristige Absprachen</strong>
+      Alles rund um konkrete Ladezeiten („Ich bin früher weg“) gehört ins
+      <a href="{{ url_for('main.board') }}">Board</a>. Verbesserungsvorschläge zum
+      System selbst sammeln wir hier, damit sie nicht im Tagesgeschäft untergehen.
+    </div>
+    <p class="muted mt-sm no-margin" style="font-size:.85rem">
+      Themen, die nichts mit dem Ladeplatz zu tun haben (Raumplanung, Organisation,
+      Teeküche …), kannst du im Board unter dem Thema „Allgemein“ einstellen.
+    </p>
+  </div>
+</div>
+
+<h2>Eingegangene Vorschläge</h2>
+{% if suggestions %}
+  <div class="stack">
+    {% for post in suggestions %}
+      <div class="item" style="{{ 'border-left:4px solid var(--green)' if post.status == 'done' else ('border-left:4px solid var(--amber)' if post.status == 'in_progress' else '') }}">
+        <div class="head">
+          <div>
+            <div class="title">{{ post.title }}</div>
+            <div class="meta">
+              {% if post.anonymous %}anonym{% else %}{{ post.user.short_name }}{% endif %}
+              · {{ post.created_at|de_datetime('%d.%m.%Y %H:%M') }}
+              · <span class="badge {{ {'open': 'grey', 'in_progress': 'amber', 'done': 'green', 'declined': 'red'}.get(post.status, 'grey') }}">{{ post.status_label }}</span>
+            </div>
+          </div>
+          {% if post.user_id == current_user.id or current_user.is_admin %}
+            <form method="post" action="{{ url_for('main.close_post', post_id=post.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn small ghost" type="submit">Schließen</button>
+            </form>
+          {% endif %}
+        </div>
+
+        <p style="white-space:pre-line;margin:.5rem 0 0">{{ post.content }}</p>
+
+        {% if post.admin_reply %}
+          <div class="admin-answer">
+            <strong>Rückmeldung der Administration</strong>
+            <span class="muted">· {{ post.replied_at|de_datetime('%d.%m.%Y') }}</span>
+            <div style="white-space:pre-line">{{ post.admin_reply }}</div>
+          </div>
+        {% endif %}
+
+        {% for comment in post.comments %}
+          <div class="comment">
+            <span class="who">{{ comment.user.short_name }}</span>
+            <span class="muted">· {{ comment.created_at|de_datetime('%d.%m. %H:%M') }}</span>
+            <div style="white-space:pre-line">{{ comment.content }}</div>
+          </div>
+        {% endfor %}
+
+        <form method="post" action="{{ url_for('main.comment', post_id=post.id) }}" class="mt-sm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="field-row">
+            <input type="text" name="content" maxlength="2000" placeholder="Ergänzen oder unterstützen …" required>
+            <button class="btn small secondary" type="submit" style="max-width:130px">Kommentieren</button>
+          </div>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty">Noch keine Vorschläge. Sei die erste Person, die etwas einbringt.</p>
+{% endif %}
+
+{% if closed %}
+  <div class="card mt">
+    <h2>Erledigte Vorschläge</h2>
+    <div class="table-wrap">
+      <table class="compact">
+        <thead><tr><th>Titel</th><th>Von</th><th>Status</th><th>Abgeschlossen</th></tr></thead>
+        <tbody>
+          {% for post in closed %}
+            <tr>
+              <td>{{ post.title }}</td>
+              <td>{% if post.anonymous %}anonym{% else %}{{ post.user.short_name }}{% endif %}</td>
+              <td><span class="badge {{ {'done': 'green', 'declined': 'red'}.get(post.status, 'grey') }}">{{ post.status_label }}</span></td>
+              <td class="nowrap">{{ post.updated_at|de_date }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

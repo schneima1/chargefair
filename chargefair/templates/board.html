@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Board{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Board</h1>
+  <div class="sub">Kurzfristige Absprachen und Themen abseits des Ladens</div>
+  <div class="toolbar">
+    <a class="btn small {{ 'secondary' if selected_topic }}" href="{{ url_for('main.board') }}">Alle Themen</a>
+    {% for key, label in topic_choices %}
+      <a class="btn small {{ 'secondary' if selected_topic != key }}"
+         href="{{ url_for('main.board', thema=key) }}">{{ label }}</a>
+    {% endfor %}
+    <a class="btn small ghost" href="{{ url_for('main.feedback') }}">Verbesserungsvorschläge →</a>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Wofür ist das Board da?</strong>
+  Für alles, was sich nicht automatisch regeln lässt: „Ich bin heute früher weg,
+  mein Platz ist ab 13:00 Uhr frei“, „Wer tauscht Freitag gegen Mittwoch?“ – und
+  für Themen abseits des Ladens (Raumplanung, Organisation, Hinweise an alle).
+  Für reguläre Freigaben nutze bitte <a href="{{ url_for('main.my_bookings') }}">Meine Ladezeiten</a> –
+  dann greift die automatische Benachrichtigung. Verbesserungsvorschläge zum
+  System sammeln wir unter <a href="{{ url_for('main.feedback') }}">Feedback</a>.
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2>Neuen Beitrag schreiben</h2>
+    <form method="post" action="{{ url_for('main.board') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field-row">
+        <div class="field">
+          <label for="topic">Thema</label>
+          <select name="topic" id="topic">
+            {% for key, label in topic_choices %}
+              <option value="{{ key }}" {% if selected_topic == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="kind">Art des Beitrags</label>
+          <select name="kind" id="kind">
+            <option value="info">Information / Frage</option>
+            <option value="offer">Ich biete eine Ladezeit an</option>
+            <option value="request">Ich suche eine Ladezeit</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="title">Titel</label>
+        <input type="text" name="title" id="title" maxlength="160" required
+               placeholder="z. B. Ladeplatz heute 13:00–16:00 Uhr frei">
+      </div>
+      <div class="field">
+        <label for="content">Text</label>
+        <textarea name="content" id="content" maxlength="4000" required
+                  placeholder="Kurze Beschreibung – wer, wann, was wird gesucht?"></textarea>
+      </div>
+      <div class="field">
+        <label for="booking_id">Bezug zu einer eigenen Ladezeit (optional)</label>
+        <select name="booking_id" id="booking_id">
+          <option value="">kein Bezug</option>
+          {% for booking in my_bookings %}
+            <option value="{{ booking.id }}">
+              {{ booking.date_label }} – {{ booking.window_label }} Uhr – Ladepunkt {{ booking.charging_point.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn" type="submit">Beitrag veröffentlichen</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Regeln für das Board</h2>
+    <ul style="padding-left:1.2rem;margin:0">
+      <li>Bitte sachlich und kurz formulieren – alle Kolleginnen und Kollegen lesen mit.</li>
+      <li>Keine personenbezogenen Daten Dritter (Kennzeichen, Telefonnummern) veröffentlichen.</li>
+      <li>Ist ein Platz vergeben, den eigenen Beitrag bitte schließen.</li>
+      <li>Verbindliche Zusagen entstehen erst durch die Übernahme im System, nicht durch einen Kommentar.</li>
+    </ul>
+    <p class="muted mt-sm" style="font-size:.86rem">
+      Beiträge können von der Verfasserin bzw. dem Verfasser jederzeit gelöscht
+      werden. Die Administration kann Beiträge bei Bedarf entfernen.
+    </p>
+    <div class="note green">
+      <strong>Anonym schreiben?</strong>
+      Für Verbesserungsvorschläge gibt es die Option „anonym einreichen“ im
+      <a href="{{ url_for('main.feedback') }}">Feedback-Bereich</a>.
+    </div>
+  </div>
+</div>
+
+<h2>Beiträge{% if selected_topic %} – {{ topic_labels.get(selected_topic) }}{% endif %}</h2>
+{% if posts %}
+  <div class="stack">
+    {% for post in posts %}
+      <div class="item">
+        <div class="head">
+          <div>
+            <div class="title">
+              {% if post.is_pinned %}📌{% endif %}
+              {{ post.title }}
+            </div>
+            <div class="meta">
+              {{ post.author_label or post.user.short_name }} · {{ post.created_at|de_datetime }}
+              · <span class="badge {{ {'offer': 'green', 'request': 'amber'}.get(post.kind, 'grey') }}">{{ post.kind_label }}</span>
+              · <span class="badge blue">{{ post.topic_label }}</span>
+              {% if post.is_closed %}<span class="badge grey">geschlossen</span>{% endif %}
+            </div>
+          </div>
+          <div class="btn-row">
+            {% if post.booking %}
+              <span class="badge blue">Ladezeit {{ post.booking.date_label }} {{ post.booking.window_label }}</span>
+            {% endif %}
+            {% if post.user_id == current_user.id or current_user.is_admin %}
+              {% if not post.is_closed %}
+                <form method="post" action="{{ url_for('main.close_post', post_id=post.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn small ghost" type="submit">Schließen</button>
+                </form>
+              {% endif %}
+              <form method="post" action="{{ url_for('main.delete_post', post_id=post.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn small ghost" type="submit">Löschen</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+
+        <p style="white-space:pre-line;margin:.5rem 0 0">{{ post.content }}</p>
+
+        {% for comment in post.comments %}
+          <div class="comment">
+            <span class="who">{{ comment.user.short_name }}</span>
+            <span class="muted">· {{ comment.created_at|de_datetime('%d.%m. %H:%M') }}</span>
+            <div style="white-space:pre-line">{{ comment.content }}</div>
+          </div>
+        {% endfor %}
+
+        {% if not post.is_closed %}
+          <form method="post" action="{{ url_for('main.comment', post_id=post.id) }}" class="mt-sm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="field-row">
+              <input type="text" name="content" maxlength="2000" placeholder="Antworten …" required>
+              <button class="btn small secondary" type="submit" style="max-width:130px">Kommentieren</button>
+            </div>
+          </form>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty">Noch keine Beiträge. Sei die erste Person, die etwas schreibt.</p>
+{% endif %}
+
+{% endblock %}

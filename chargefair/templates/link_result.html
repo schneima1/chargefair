@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · {{ app_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="inner">
+      <a class="brand" href="{{ url_for('main.landing') }}">
+        <span class="logo">⚡</span>
+        <span>{{ app_name }}<small>Faire Ladeplatzvergabe</small></span>
+      </a>
+    </div>
+  </header>
+
+  <main class="page" style="max-width:620px">
+    <div class="card {{ 'success' if ok else 'warn' }}">
+      <h1>{{ title }}</h1>
+      <p>{{ message }}</p>
+
+      {% if booking %}
+        <dl class="kv mt">
+          <dt>Datum</dt><dd>{{ booking.weekday|weekday }}, {{ booking.date_label }}</dd>
+          <dt>Zeit</dt><dd>{{ booking.window_label }} Uhr</dd>
+          <dt>Ladepunkt</dt><dd>{{ booking.charging_point.name }}</dd>
+          {% if booking.parking_space %}<dt>Stellplatz</dt><dd>{{ booking.parking_space.name }}</dd>{% endif %}
+          <dt>Status</dt><dd><span class="badge {{ {'active': 'green', 'released': 'amber'}.get(booking.status, 'grey') }}">{{ booking.status_label }}</span></dd>
+        </dl>
+      {% endif %}
+
+      <div class="btn-row mt">
+        <a class="btn" href="{{ url_for('main.dashboard') }}">Zur Übersicht</a>
+        <a class="btn secondary" href="{{ url_for('main.plan') }}">Wochenplan</a>
+      </div>
+
+      <p class="muted mt-sm no-margin" style="font-size:.84rem">
+        Dieser Link stammt aus einer E-Mail von {{ app_name }} und ist zeitlich
+        begrenzt gültig. Ohne Anmeldung kann nur diese eine Aktion ausgeführt werden.
+      </p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="inner">
+      <span>{{ app_name }} · {{ company_name }}</span>
+      <span><a href="{{ url_for('main.landing') }}">Startseite</a></span>
+      <span>© {{ current_year }}</span>
+    </div>
+  </footer>
+</body>
+</html>
