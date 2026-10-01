@@ -14,7 +14,40 @@ oder um eine Entscheidung zu begründen.
 | `report.py` | Kennzahlen, Tabellen, Textauswertung |
 | `visuals.py` | Grafiken (Heatmaps, Balkendiagramme) |
 | `main.py` | Einstiegspunkt: alles zusammen ausführen |
+| `bench_solver_80.py` | Lasttest der echten Verfahren bei Zielgröße (80 Personen) |
 | `out/` | Ausgabeverzeichnis (CSV, Grafiken, `auswertung.txt`) |
+
+## Lasttest bei Zielgröße
+
+`bench_solver_80.py` prüft die **portierten** Verfahren aus
+`chargefair/allocation.py` unter realen Bedingungen: 80 Personen, 40 Zeitfenster
+(5 Tage × 8 Fenster), 3 Ladepunkte je Fenster, 6 Wünsche je Person, gewünscht sind
+2 Ladezeiten. Gemessen wird Laufzeit, Speicherbedarf und die Zahl der versorgten
+Personen.
+
+```bash
+# im laufenden Container (nutzt das installierte Paket)
+docker compose exec -T web python - < research/bench_solver_80.py
+```
+
+Ergebnis auf dieser Installation:
+
+| Verfahren | Laufzeit | Versorgte Personen | Verteilte Slots | Spitzen-RSS |
+| --- | ---: | ---: | ---: | ---: |
+| `lexicographic` | 0,43 s | **80 / 80** | 120 von 120 | 159 MiB |
+| `rank_based` | 1,19 s | **80 / 80** | 120 von 120 | 174 MiB |
+| `guaranteed` | 0,00 s | **80 / 80** | 120 von 120 | 174 MiB |
+
+Die Baseline vor dem Lauf lag bei 117 MiB – der Solver benötigt also rund 40 MiB
+zusätzlich. Wichtig für den Betrieb: Bei der Zielgröße von 85 Mitarbeitenden
+versorgt **jedes** Verfahren alle Personen, und die Rechenzeit bleibt deutlich
+unter einer Sekunde. Das Zeitlimit (`SOLVER_TIME_LIMIT`, Standard 20 s) greift in
+dieser Größenordnung nie.
+
+Für noch größere Instanzen lohnt es sich, `workers` (Standard 8) nicht zu
+reduzieren: Ohne ausreichend Threads nutzt CP-SAT die LP-Relaxierung schwächer
+und braucht deutlich länger – siehe `linearization_level` in
+`chargefair/allocation.py`.
 
 ## Ausführen
 

@@ -545,8 +545,7 @@ chargefair/
 ├── templates/                # Jinja2-Templates (deutsch)
 └── static/css/app.css        # Oberflächendesign
 
-research/                     # Vortests zur Verfahrensauswahl (nicht Teil der App)
-docker/entrypoint.sh          # Bootstrap und Start
+research/                     # Vortests zur Verfahrensauswahl (nicht Teil der App)docker/entrypoint.sh          # Bootstrap und Start
 docker-compose.yml            # web + worker
 Dockerfile
 run.py                        # lokaler Start ohne Docker
@@ -657,6 +656,15 @@ python main.py --users 70 --seed 42
 Die Skripte erzeugen synthetische Nutzergruppen, wenden alle Vergabeverfahren an
 und erstellen Kennzahlen, CSV-Exporte und Grafiken in `research/out/` – nützlich,
 um Verfahren ohne echte Daten zu vergleichen oder eine Entscheidung zu belegen.
+
+`research/bench_solver_80.py` ist ein Lasttest der portierten Verfahren bei
+Zielgröße (80 Personen, 40 Zeitfenster, 3 Ladepunkte je Fenster). Gemessenes
+Ergebnis: **alle 80 Personen werden versorgt**, der Solver braucht 0,43 s
+(`lexicographic`) bzw. 1,19 s (`rank_based`) und rund 40 MiB zusätzlichen Speicher.
+
+```bash
+docker compose exec -T web python - < research/bench_solver_80.py
+```
 
 Die Verfahren selbst wurden nach `chargefair/allocation.py` portiert und dort auf
 echte Buchungswünsche umgestellt; die Webanwendung nutzt ausschließlich diese
